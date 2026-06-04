@@ -1,0 +1,15 @@
+.DS_Store
+Dockerfile*
+laravel/.env
+laravel/.env.*
+!laravel/.env*.example
+laravel/vendor
+laravel/node_modules
+laravel/public/build
+laravel/public/hot
+laravel/public/storage
+laravel/storage/logs/*
+laravel/storage/framework/cache/*
+laravel/storage/framework/sessions/*
+laravel/storage/framework/views/*
+laravel/database/*.sqlite*
