@@ -5,18 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Payable extends Model
+class CreditCardTransaction extends Model
 {
     protected $fillable = [
         'user_id',
+        'credit_card_id',
+        'credit_card_invoice_id',
         'category_id',
         'description',
         'amount',
-        'due_date',
-        'is_paid',
-        'paid_at',
-        'bank_account_id',
-        'kind',
+        'purchase_date',
         'installment_number',
         'installments_total',
         'group_id',
@@ -26,9 +24,7 @@ class Payable extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'due_date' => 'date',
-        'paid_at' => 'date',
-        'is_paid' => 'boolean',
+        'purchase_date' => 'date',
     ];
 
     public function user(): BelongsTo
@@ -36,13 +32,18 @@ class Payable extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function card(): BelongsTo
+    {
+        return $this->belongsTo(CreditCard::class, 'credit_card_id');
+    }
+
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(CreditCardInvoice::class, 'credit_card_invoice_id');
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(FinanceCategory::class, 'category_id');
-    }
-
-    public function bankAccount(): BelongsTo
-    {
-        return $this->belongsTo(BankAccount::class);
     }
 }

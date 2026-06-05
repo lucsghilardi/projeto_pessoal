@@ -39,4 +39,10 @@ return [
         'secret_key' => env('RECAPTCHA_SECRET_KEY'),
     ],
 
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_RECEIPT_MODEL', 'claude-sonnet-4-6'),
+        'version' => '2023-06-01',
+    ],
+
 ];

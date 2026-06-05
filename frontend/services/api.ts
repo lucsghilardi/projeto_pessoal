@@ -3,6 +3,19 @@ import { CreateUserPayload, UpdateUserPayload, User } from '@/types/User';
 import { Investment, InvestmentPayload, InvestmentSummary } from '@/types/Investment';
 import { InvestmentTag, InvestmentTagPayload } from '@/types/InvestmentTag';
 import { InvestmentInstitution, InvestmentInstitutionPayload } from '@/types/InvestmentInstitution';
+import { Asset, AssetPayload, AssetsResponse } from '@/types/Asset';
+import { AiReceiptBatchPayload, AiReceiptBatchResult, AiReceiptConfirmPayload, ReceiptParseResponse } from '@/types/AiReceipt';
+import {
+    CreditCard,
+    CreditCardInvoice,
+    CreditCardInvoicePaymentPayload,
+    CreditCardPayload,
+    CreditCardsResponse,
+    CreditCardTransaction,
+    CreditCardTransactionPayload,
+    CreditCardTransactionUpdatePayload,
+    ResolvedInvoiceWindow,
+} from '@/types/CreditCard';
 import {
     BankAccount,
     BankAccountPayload,
@@ -260,6 +273,30 @@ export function deleteFinanceCategory(id: number) {
     });
 }
 
+export function getAssets() {
+    return apiFetch<AssetsResponse>('/assets');
+}
+
+export function createAsset(data: AssetPayload) {
+    return apiFetch<Asset>('/assets', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateAsset(id: number, data: AssetPayload) {
+    return apiFetch<Asset>(`/assets/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteAsset(id: number) {
+    return apiFetch<{ message: string }>(`/assets/${id}`, {
+        method: 'DELETE',
+    });
+}
+
 export function getBankAccounts() {
     return apiFetch<BankAccountsResponse>('/finance/accounts');
 }
@@ -353,5 +390,98 @@ export function unreceiveReceivable(id: number) {
 export function deleteReceivable(id: number, scope: 'one' | 'group' = 'one') {
     return apiFetch<{ message: string }>(`/finance/receivables/${id}?scope=${scope}`, {
         method: 'DELETE',
+    });
+}
+
+// ===== Cartões de crédito =====
+
+export function getCreditCards() {
+    return apiFetch<CreditCardsResponse>('/finance/credit-cards');
+}
+
+export function createCreditCard(data: CreditCardPayload) {
+    return apiFetch<CreditCard>('/finance/credit-cards', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateCreditCard(id: number, data: CreditCardPayload) {
+    return apiFetch<CreditCard>(`/finance/credit-cards/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteCreditCard(id: number) {
+    return apiFetch<{ message: string }>(`/finance/credit-cards/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export function resolveCreditCardInvoice(cardId: number, date: string) {
+    return apiFetch<ResolvedInvoiceWindow>(`/finance/credit-cards/${cardId}/resolve-invoice?date=${date}`);
+}
+
+export function getCreditCardInvoice(cardId: number, month: string) {
+    return apiFetch<CreditCardInvoice>(`/finance/credit-cards/${cardId}/invoices?month=${month}`);
+}
+
+export function createCreditCardTransaction(data: CreditCardTransactionPayload) {
+    return apiFetch<{ message: string; created: number }>('/finance/credit-card-transactions', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateCreditCardTransaction(id: number, data: CreditCardTransactionUpdatePayload) {
+    return apiFetch<CreditCardTransaction>(`/finance/credit-card-transactions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteCreditCardTransaction(id: number, scope: 'one' | 'group' = 'one') {
+    return apiFetch<{ message: string }>(`/finance/credit-card-transactions/${id}?scope=${scope}`, {
+        method: 'DELETE',
+    });
+}
+
+export function payCreditCardInvoice(invoiceId: number, data: CreditCardInvoicePaymentPayload) {
+    return apiFetch<CreditCardInvoice>(`/finance/credit-cards/invoices/${invoiceId}/payments`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteCreditCardInvoicePayment(invoiceId: number, paymentId: number) {
+    return apiFetch<CreditCardInvoice>(`/finance/credit-cards/invoices/${invoiceId}/payments/${paymentId}`, {
+        method: 'DELETE',
+    });
+}
+
+// ===== Lançamento via IA (foto de comprovante) =====
+
+export function parseAiReceipt(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return apiFetch<ReceiptParseResponse>('/finance/ai-receipt/parse', {
+        method: 'POST',
+        body: formData,
+    });
+}
+
+export function confirmAiReceipt(data: AiReceiptConfirmPayload) {
+    return apiFetch<{ message: string; created: number }>('/finance/ai-receipt/confirm', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function confirmAiReceiptBatch(data: AiReceiptBatchPayload) {
+    return apiFetch<AiReceiptBatchResult>('/finance/ai-receipt/confirm-batch', {
+        method: 'POST',
+        body: JSON.stringify(data),
     });
 }

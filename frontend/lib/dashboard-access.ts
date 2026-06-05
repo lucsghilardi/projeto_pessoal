@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, Landmark, LayoutDashboard, Tags, Target, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, CreditCard, Gem, Landmark, LayoutDashboard, ScanLine, Tags, Target, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -23,6 +23,8 @@ const ALL_ROLES: UserRole[] = ["admin", "editor", "viewer"];
 
 const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/investments", roles: ALL_ROLES },
+  { path: "/dashboard/assets", roles: ALL_ROLES },
+  { path: "/dashboard/finance/credit-cards", roles: ALL_ROLES },
   { path: "/dashboard/finance", roles: ALL_ROLES },
   { path: "/dashboard/users", roles: ["admin"] },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
@@ -38,13 +40,26 @@ export const dashboardNavSections: DashboardNavSection[] = [
     ],
   },
   {
+    label: "Patrimônio",
+    items: [
+      { title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },
+    ],
+  },
+  {
     label: "Financeiro",
     items: [
       { title: "Painel", url: "/dashboard/finance", roles: ALL_ROLES, icon: LayoutDashboard },
+      { title: "Lançar via IA", url: "/dashboard/finance/lancamento-ia", roles: ALL_ROLES, icon: ScanLine },
       { title: "Contas a pagar", url: "/dashboard/finance/payables", roles: ALL_ROLES, icon: ArrowDownCircle },
       { title: "Contas a receber", url: "/dashboard/finance/receivables", roles: ALL_ROLES, icon: ArrowUpCircle },
       { title: "Contas (saldos)", url: "/dashboard/finance/accounts", roles: ALL_ROLES, icon: Banknote },
       { title: "Categorias", url: "/dashboard/finance/categories", roles: ALL_ROLES, icon: Tags },
+    ],
+  },
+  {
+    label: "Cartões",
+    items: [
+      { title: "Cartões de crédito", url: "/dashboard/finance/credit-cards", roles: ALL_ROLES, icon: CreditCard },
     ],
   },
   {
