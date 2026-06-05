@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Users } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, Landmark, LayoutDashboard, Tags, Target, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -22,11 +22,31 @@ export type DashboardNavSection = {
 const ALL_ROLES: UserRole[] = ["admin", "editor", "viewer"];
 
 const dashboardRouteRules: DashboardRouteRule[] = [
+  { path: "/dashboard/investments", roles: ALL_ROLES },
+  { path: "/dashboard/finance", roles: ALL_ROLES },
   { path: "/dashboard/users", roles: ["admin"] },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
 ];
 
 export const dashboardNavSections: DashboardNavSection[] = [
+  {
+    label: "Investimentos",
+    items: [
+      { title: "Carteira", url: "/dashboard/investments", roles: ALL_ROLES, icon: Wallet },
+      { title: "Propósitos", url: "/dashboard/investments/purposes", roles: ALL_ROLES, icon: Target },
+      { title: "Instituições", url: "/dashboard/investments/institutions", roles: ALL_ROLES, icon: Landmark },
+    ],
+  },
+  {
+    label: "Financeiro",
+    items: [
+      { title: "Painel", url: "/dashboard/finance", roles: ALL_ROLES, icon: LayoutDashboard },
+      { title: "Contas a pagar", url: "/dashboard/finance/payables", roles: ALL_ROLES, icon: ArrowDownCircle },
+      { title: "Contas a receber", url: "/dashboard/finance/receivables", roles: ALL_ROLES, icon: ArrowUpCircle },
+      { title: "Contas (saldos)", url: "/dashboard/finance/accounts", roles: ALL_ROLES, icon: Banknote },
+      { title: "Categorias", url: "/dashboard/finance/categories", roles: ALL_ROLES, icon: Tags },
+    ],
+  },
   {
     label: "Configurações",
     items: [
@@ -62,6 +82,11 @@ export function getDashboardNavSectionsForRole(role: UserRole) {
 
 export function isDashboardItemActive(pathname: string, url: string) {
   if (url === "/dashboard") {
+    return pathname === url;
+  }
+
+  // "Carteira" (/dashboard/investments) não deve ficar ativa em /investments/purposes.
+  if (url === "/dashboard/investments" || url === "/dashboard/finance") {
     return pathname === url;
   }
 
