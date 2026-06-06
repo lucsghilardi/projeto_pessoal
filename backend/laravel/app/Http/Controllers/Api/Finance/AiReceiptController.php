@@ -69,21 +69,22 @@ class AiReceiptController extends Controller
                 ->value('id');
         }
 
-        // Marca cada item já lançado (mesmo cartão + impressão digital) para o usuário não duplicar.
-        $existing = $suggestedCardId
-            ? CreditCardTransaction::query()
-                ->where('credit_card_id', $suggestedCardId)
-                ->pluck('import_fingerprint')
-                ->filter()
-                ->flip()
-            : collect();
+        // Marca duplicados já lançados. Se o cartão foi auto-detectado, já checa contra ele;
+        // senão fica como falso e o front refaz a checagem contra o cartão/conta escolhido.
+        $itemsForFlag = array_map(fn ($item) => [
+            'description' => $item['description'],
+            'amount' => $item['amount'],
+            'date' => $item['purchase_date'],
+        ], $items);
 
-        $items = array_map(function (array $item) use ($existing) {
-            $fingerprint = self::fingerprint($item['description'], $item['amount'], $item['purchase_date']);
-            $item['duplicate'] = $existing->has($fingerprint);
+        $flags = $suggestedCardId
+            ? $this->flagDuplicates($itemsForFlag, $this->cardCountResolver($suggestedCardId))
+            : array_fill(0, count($items), false);
 
-            return $item;
-        }, $items);
+        foreach ($items as $i => &$item) {
+            $item['duplicate'] = $flags[$i] ?? false;
+        }
+        unset($item);
 
         $firstMethod = $items[0]['payment_method'] ?? 'desconhecido';
 
@@ -155,17 +156,56 @@ class AiReceiptController extends Controller
     }
 
     /**
-     * Persiste VÁRIOS lançamentos de uma fatura no mesmo cartão, pulando os já lançados.
+     * Reavalia quais itens já existem no destino escolhido (cartão ou conta).
+     * Usado pela tela quando o usuário seleciona/troca o cartão ou a conta de destino.
+     */
+    public function checkDuplicates(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $data = $request->validate([
+            'destination' => ['required', Rule::in(['cartao', 'conta'])],
+            'credit_card_id' => [
+                'required_if:destination,cartao', 'nullable', 'integer',
+                Rule::exists('credit_cards', 'id')->where('user_id', $userId),
+            ],
+            'bank_account_id' => [
+                'required_if:destination,conta', 'nullable', 'integer',
+                Rule::exists('bank_accounts', 'id')->where('user_id', $userId),
+            ],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.description' => ['present', 'nullable', 'string', 'max:255'],
+            'items.*.amount' => ['required', 'numeric'],
+            'items.*.date' => ['required', 'date'],
+        ]);
+
+        $resolver = $data['destination'] === 'cartao'
+            ? $this->cardCountResolver((int) $data['credit_card_id'])
+            : $this->accountCountResolver($userId);
+
+        return response()->json([
+            'duplicates' => $this->flagDuplicates($data['items'], $resolver),
+        ]);
+    }
+
+    /**
+     * Persiste VÁRIOS lançamentos (fatura ou extrato) no destino escolhido, pulando os já lançados.
+     * Conta (extrato): cria como pago SEM debitar o saldo, pois o extrato já reflete o saldo atual.
      */
     public function confirmBatch(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
 
         $data = $request->validate([
+            'destination' => ['required', Rule::in(['cartao', 'conta'])],
             'receipt_path' => ['required', 'string', 'max:255'],
             'credit_card_id' => [
-                'required', 'integer',
+                'required_if:destination,cartao', 'nullable', 'integer',
                 Rule::exists('credit_cards', 'id')->where('user_id', $userId),
+            ],
+            'bank_account_id' => [
+                'required_if:destination,conta', 'nullable', 'integer',
+                Rule::exists('bank_accounts', 'id')->where('user_id', $userId),
             ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required', 'string', 'max:255'],
@@ -179,24 +219,41 @@ class AiReceiptController extends Controller
 
         $receiptPath = $this->assertReceiptOwnership($userId, $data['receipt_path']);
         if ($receiptPath === null) {
-            return response()->json(['message' => 'Arquivo inválido. Reenvie a fatura.'], 422);
+            return response()->json(['message' => 'Arquivo inválido. Reenvie o arquivo.'], 422);
         }
 
-        $card = CreditCard::query()->where('user_id', $userId)->findOrFail($data['credit_card_id']);
+        [$created, $skipped] = $data['destination'] === 'cartao'
+            ? $this->importToCard($userId, $data, $receiptPath)
+            : $this->importToAccount($userId, $data, $receiptPath);
 
+        $where = $data['destination'] === 'cartao' ? 'Fatura' : 'Extrato';
+
+        return response()->json([
+            'message' => "{$where} importado: {$created} novo(s), {$skipped} já existente(s).",
+            'created' => $created,
+            'skipped' => $skipped,
+        ], 201);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{0:int,1:int} [created, skipped]
+     */
+    private function importToCard(int $userId, array $data, string $receiptPath): array
+    {
+        $card = CreditCard::query()->where('user_id', $userId)->findOrFail($data['credit_card_id']);
         $created = 0;
         $skipped = 0;
 
-        DB::transaction(function () use ($card, $userId, $data, $receiptPath, &$created, &$skipped) {
+        // Quantos de cada impressão digital já existem (consciente de repetição).
+        $remaining = ($this->cardCountResolver($card->id))($this->fingerprintsOf($data['items']));
+
+        DB::transaction(function () use ($card, $userId, $data, $receiptPath, &$created, &$skipped, &$remaining) {
             foreach ($data['items'] as $item) {
                 $fingerprint = self::fingerprint($item['description'], $item['amount'], $item['date']);
 
-                $exists = CreditCardTransaction::query()
-                    ->where('credit_card_id', $card->id)
-                    ->where('import_fingerprint', $fingerprint)
-                    ->exists();
-
-                if ($exists) {
+                if (($remaining[$fingerprint] ?? 0) > 0) {
+                    $remaining[$fingerprint]--;
                     $skipped++;
 
                     continue;
@@ -221,11 +278,130 @@ class AiReceiptController extends Controller
             }
         });
 
-        return response()->json([
-            'message' => "Fatura importada: {$created} novo(s), {$skipped} já existente(s).",
-            'created' => $created,
-            'skipped' => $skipped,
-        ], 201);
+        return [$created, $skipped];
+    }
+
+    /**
+     * Importa um extrato para uma conta: cria lançamentos pagos SEM mexer no saldo.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{0:int,1:int} [created, skipped]
+     */
+    private function importToAccount(int $userId, array $data, string $receiptPath): array
+    {
+        $accountId = (int) $data['bank_account_id'];
+        $created = 0;
+        $skipped = 0;
+
+        $remaining = ($this->accountCountResolver($userId))($this->fingerprintsOf($data['items']));
+
+        DB::transaction(function () use ($userId, $accountId, $data, $receiptPath, &$created, &$skipped, &$remaining) {
+            foreach ($data['items'] as $item) {
+                $fingerprint = self::fingerprint($item['description'], $item['amount'], $item['date']);
+
+                if (($remaining[$fingerprint] ?? 0) > 0) {
+                    $remaining[$fingerprint]--;
+                    $skipped++;
+
+                    continue;
+                }
+
+                $date = Carbon::parse($item['date'])->startOfDay()->toDateString();
+
+                Payable::create([
+                    'user_id' => $userId,
+                    'category_id' => $item['category_id'] ?? null,
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
+                    'due_date' => $date,
+                    'kind' => 'avulsa',
+                    'is_paid' => true,
+                    'paid_at' => $date,
+                    'bank_account_id' => $accountId,
+                    'receipt_path' => $receiptPath,
+                    'import_fingerprint' => $fingerprint,
+                ]);
+
+                $created++;
+            }
+        });
+
+        return [$created, $skipped];
+    }
+
+    /**
+     * Marca como duplicado os N primeiros itens de cada impressão digital que já existem no destino
+     * (consciente de repetição: itens idênticos além do que já está salvo continuam como novos).
+     *
+     * @param  list<array{description?:string|null,amount:mixed,date:string}>  $items
+     * @param  \Closure(list<string>): array<string,int>  $countResolver
+     * @return list<bool>
+     */
+    private function flagDuplicates(array $items, \Closure $countResolver): array
+    {
+        $fingerprints = array_map(
+            fn ($item) => self::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
+            $items
+        );
+
+        $remaining = $countResolver(array_values(array_unique($fingerprints)));
+
+        $flags = [];
+        foreach ($fingerprints as $fingerprint) {
+            $isDuplicate = ($remaining[$fingerprint] ?? 0) > 0;
+            if ($isDuplicate) {
+                $remaining[$fingerprint]--;
+            }
+            $flags[] = $isDuplicate;
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<string>
+     */
+    private function fingerprintsOf(array $items): array
+    {
+        return array_values(array_unique(array_map(
+            fn ($item) => self::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
+            $items
+        )));
+    }
+
+    /**
+     * Resolve quantas transações de cada impressão digital já existem no cartão.
+     *
+     * @return \Closure(list<string>): array<string,int>
+     */
+    private function cardCountResolver(int $cardId): \Closure
+    {
+        return fn (array $fingerprints) => empty($fingerprints) ? [] : CreditCardTransaction::query()
+            ->where('credit_card_id', $cardId)
+            ->whereIn('import_fingerprint', $fingerprints)
+            ->selectRaw('import_fingerprint, count(*) as total')
+            ->groupBy('import_fingerprint')
+            ->pluck('total', 'import_fingerprint')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+    }
+
+    /**
+     * Resolve quantos lançamentos de cada impressão digital já existem nas contas do usuário.
+     *
+     * @return \Closure(list<string>): array<string,int>
+     */
+    private function accountCountResolver(int $userId): \Closure
+    {
+        return fn (array $fingerprints) => empty($fingerprints) ? [] : Payable::query()
+            ->where('user_id', $userId)
+            ->whereIn('import_fingerprint', $fingerprints)
+            ->selectRaw('import_fingerprint, count(*) as total')
+            ->groupBy('import_fingerprint')
+            ->pluck('total', 'import_fingerprint')
+            ->map(fn ($v) => (int) $v)
+            ->all();
     }
 
     /**

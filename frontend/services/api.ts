@@ -4,7 +4,14 @@ import { Investment, InvestmentPayload, InvestmentSummary } from '@/types/Invest
 import { InvestmentTag, InvestmentTagPayload } from '@/types/InvestmentTag';
 import { InvestmentInstitution, InvestmentInstitutionPayload } from '@/types/InvestmentInstitution';
 import { Asset, AssetPayload, AssetsResponse } from '@/types/Asset';
-import { AiReceiptBatchPayload, AiReceiptBatchResult, AiReceiptConfirmPayload, ReceiptParseResponse } from '@/types/AiReceipt';
+import {
+    AiReceiptBatchPayload,
+    AiReceiptBatchResult,
+    AiReceiptCheckDuplicatesPayload,
+    AiReceiptCheckDuplicatesResult,
+    AiReceiptConfirmPayload,
+    ReceiptParseResponse,
+} from '@/types/AiReceipt';
 import {
     CreditCard,
     CreditCardInvoice,
@@ -481,6 +488,13 @@ export function confirmAiReceipt(data: AiReceiptConfirmPayload) {
 
 export function confirmAiReceiptBatch(data: AiReceiptBatchPayload) {
     return apiFetch<AiReceiptBatchResult>('/finance/ai-receipt/confirm-batch', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function checkAiReceiptDuplicates(data: AiReceiptCheckDuplicatesPayload) {
+    return apiFetch<AiReceiptCheckDuplicatesResult>('/finance/ai-receipt/check-duplicates', {
         method: 'POST',
         body: JSON.stringify(data),
     });

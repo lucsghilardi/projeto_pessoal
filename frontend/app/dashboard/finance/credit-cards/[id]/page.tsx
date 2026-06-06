@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -102,24 +102,47 @@ function formatFullDate(value: string) {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+type AmountMode = "total" | "parcela";
+
 type TxFormState = {
+  credit_card_id: string;
   category_id: string;
   description: string;
   amount: string;
   purchase_date: string;
   installments_total: string;
+  amount_mode: AmountMode;
   reference_month: string;
 };
 
 function emptyTxForm(): TxFormState {
   return {
+    credit_card_id: "",
     category_id: "",
     description: "",
     amount: "",
     purchase_date: new Date().toISOString().slice(0, 10),
     installments_total: "1",
+    amount_mode: "total",
     reference_month: currentMonth(),
   };
+}
+
+const INSTALLMENT_SHORTCUTS = [2, 3, 6, 10, 12, 18, 24];
+
+/**
+ * Divide o valor digitado entre as parcelas, espelhando o backend: quando o valor
+ * é o total, o centavo que sobra da divisão vai na 1ª parcela.
+ */
+function splitInstallments(amount: number, count: number, amountIsTotal: boolean): number[] {
+  const n = Math.max(1, count);
+  if (n < 2 || !amountIsTotal) {
+    return Array.from({ length: n }, () => Math.round(amount * 100) / 100);
+  }
+  const totalCents = Math.round(amount * 100);
+  const base = Math.floor(totalCents / n);
+  const remainder = totalCents - base * n;
+  return Array.from({ length: n }, (_, i) => (base + (i === 0 ? remainder : 0)) / 100);
 }
 
 export default function CreditCardInvoicePage() {
@@ -127,6 +150,7 @@ export default function CreditCardInvoicePage() {
   const cardId = Number(params.id);
 
   const [card, setCard] = useState<CreditCard | null>(null);
+  const [cards, setCards] = useState<CreditCard[]>([]);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [month, setMonth] = useState(currentMonth());
@@ -163,6 +187,7 @@ export default function CreditCardInvoicePage() {
           getBankAccounts(),
         ]);
         if (!mounted) return;
+        setCards(cardsResp.credit_cards);
         setCard(cardsResp.credit_cards.find((c) => c.id === cardId) ?? null);
         setCategories(cats);
         setAccounts(acc.accounts);
@@ -203,9 +228,23 @@ export default function CreditCardInvoicePage() {
     return Array.from(new Set(opts)).sort();
   })();
 
+  // Plano de parcelas para o formulário de lançamento (preview ao vivo).
+  const installmentsCount = Math.max(1, Number(txForm.installments_total) || 1);
+  const isParcelado = installmentsCount >= 2;
+  const amountValue = toNumber(txForm.amount);
+  const installmentPlan = splitInstallments(amountValue, installmentsCount, txForm.amount_mode === "total");
+  const perInstallment = installmentPlan[0] ?? 0;
+  const planTotal = installmentPlan.reduce((sum, value) => sum + value, 0);
+  const isCustomInstallments = isParcelado && !INSTALLMENT_SHORTCUTS.includes(installmentsCount);
+  const installmentsInputRef = useRef<HTMLInputElement>(null);
+
+  function setInstallments(value: string) {
+    setTxForm((prev) => ({ ...prev, installments_total: value }));
+  }
+
   function openCreateTx() {
     setEditingTx(null);
-    setTxForm({ ...emptyTxForm(), reference_month: month });
+    setTxForm({ ...emptyTxForm(), credit_card_id: String(cardId), reference_month: month });
     setTxError(null);
     setIsTxOpen(true);
     // Sugere a fatura pela data de hoje.
@@ -215,11 +254,13 @@ export default function CreditCardInvoicePage() {
   function openEditTx(tx: CreditCardTransaction) {
     setEditingTx(tx);
     setTxForm({
+      credit_card_id: String(tx.credit_card_id),
       category_id: tx.category_id ? String(tx.category_id) : "",
       description: tx.description,
       amount: String(tx.amount),
       purchase_date: tx.purchase_date.slice(0, 10),
       installments_total: String(tx.installments_total ?? "1"),
+      amount_mode: "parcela",
       reference_month: month,
     });
     setTxError(null);
@@ -260,24 +301,38 @@ export default function CreditCardInvoicePage() {
     try {
       const categoryId = txForm.category_id ? Number(txForm.category_id) : null;
       if (editingTx) {
+        const targetCardId = Number(txForm.credit_card_id) || cardId;
+        const cardChanged = targetCardId !== editingTx.credit_card_id;
         await updateCreditCardTransaction(editingTx.id, {
+          credit_card_id: cardChanged ? targetCardId : undefined,
           category_id: categoryId,
           description: txForm.description.trim(),
           amount,
           reference_month: txForm.reference_month || undefined,
         });
-        appToast.success("Lançamento atualizado.");
+        if (cardChanged) {
+          const dest = cards.find((c) => c.id === targetCardId);
+          appToast.success(
+            editingTx.group_id
+              ? `Parcelamento movido para ${dest?.name ?? "outro cartão"}.`
+              : `Lançamento movido para ${dest?.name ?? "outro cartão"}.`,
+          );
+        } else {
+          appToast.success("Lançamento atualizado.");
+        }
       } else {
+        const parcelado = installments >= 2;
         await createCreditCardTransaction({
           credit_card_id: cardId,
           category_id: categoryId,
           description: txForm.description.trim(),
           amount,
           purchase_date: txForm.purchase_date,
-          installments_total: installments >= 2 ? installments : undefined,
+          installments_total: parcelado ? installments : undefined,
+          amount_is_total: parcelado && txForm.amount_mode === "total",
           reference_month: txForm.reference_month || undefined,
         });
-        appToast.success("Gasto lançado.");
+        appToast.success(parcelado ? `Compra parcelada em ${installments}x lançada.` : "Gasto lançado.");
       }
       setIsTxOpen(false);
       // Vai para a fatura onde o lançamento caiu.
@@ -540,7 +595,7 @@ export default function CreditCardInvoicePage() {
             <SheetTitle>{editingTx ? "Editar lançamento" : "Lançar gasto"}</SheetTitle>
             <SheetDescription>
               {editingTx
-                ? "Edite o gasto e, se quiser, mova-o para outra fatura."
+                ? "Edite o gasto e, se quiser, mova-o para outro cartão ou fatura."
                 : "A fatura é sugerida pela data da compra, mas você pode trocá-la."}
             </SheetDescription>
           </SheetHeader>
@@ -569,47 +624,175 @@ export default function CreditCardInvoicePage() {
                 </Select>
               </Field>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <FieldLabel htmlFor="tx-amount">
-                    {!editingTx && Number(txForm.installments_total) >= 2 ? "Valor da parcela (R$)" : "Valor (R$)"}
-                  </FieldLabel>
-                  <Input id="tx-amount" type="number" step="0.01" min="0" value={txForm.amount}
-                    onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0,00" />
-                </Field>
-                {!editingTx ? (
+              {editingTx ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="tx-card">Cartão</FieldLabel>
+                    <Select value={txForm.credit_card_id}
+                      onValueChange={(value) => setTxForm({ ...txForm, credit_card_id: value })}>
+                      <SelectTrigger id="tx-card">
+                        <SelectValue placeholder="Selecione o cartão" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cards.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editingTx.group_id && Number(txForm.credit_card_id) !== editingTx.credit_card_id ? (
+                      <p className="text-xs text-muted-foreground">
+                        Todas as {editingTx.installments_total} parcelas serão movidas para o novo cartão.
+                      </p>
+                    ) : null}
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="tx-amount">Valor (R$)</FieldLabel>
+                    <Input id="tx-amount" type="number" step="0.01" min="0" value={txForm.amount}
+                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0,00" />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="tx-invoice">Fatura</FieldLabel>
+                    <Select value={txForm.reference_month}
+                      onValueChange={(value) => setTxForm({ ...txForm, reference_month: value })}>
+                      <SelectTrigger id="tx-invoice">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {referenceOptions.map((ref) => (
+                          <SelectItem key={ref} value={ref}>{monthLabel(ref)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </>
+              ) : (
+                <>
                   <Field>
                     <FieldLabel htmlFor="tx-date">Data da compra</FieldLabel>
                     <Input id="tx-date" type="date" value={txForm.purchase_date}
                       onChange={(e) => onPurchaseDateChange(e.target.value)} />
                   </Field>
-                ) : null}
-              </div>
 
-              {!editingTx ? (
-                <Field>
-                  <FieldLabel htmlFor="tx-installments">Parcelas (1 = à vista)</FieldLabel>
-                  <Input id="tx-installments" type="number" min="1" max="360" value={txForm.installments_total}
-                    onChange={(e) => setTxForm({ ...txForm, installments_total: e.target.value })} />
-                </Field>
-              ) : null}
+                  {/* À vista x Parcelado */}
+                  <Field>
+                    <FieldLabel>Forma de pagamento</FieldLabel>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant={isParcelado ? "outline" : "default"}
+                        onClick={() => setInstallments("1")}>
+                        À vista
+                      </Button>
+                      <Button type="button" variant={isParcelado ? "default" : "outline"}
+                        onClick={() => setInstallments(installmentsCount >= 2 ? String(installmentsCount) : "2")}>
+                        Parcelado
+                      </Button>
+                    </div>
+                  </Field>
 
-              <Field>
-                <FieldLabel htmlFor="tx-invoice">
-                  {!editingTx && Number(txForm.installments_total) >= 2 ? "Fatura da 1ª parcela" : "Fatura"}
-                </FieldLabel>
-                <Select value={txForm.reference_month}
-                  onValueChange={(value) => setTxForm({ ...txForm, reference_month: value })}>
-                  <SelectTrigger id="tx-invoice">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {referenceOptions.map((ref) => (
-                      <SelectItem key={ref} value={ref}>{monthLabel(ref)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+                  {isParcelado ? (
+                    <Field>
+                      <FieldLabel htmlFor="tx-installments">Número de parcelas</FieldLabel>
+                      <Input id="tx-installments" ref={installmentsInputRef} type="number" min="2" max="360"
+                        value={txForm.installments_total} onChange={(e) => setInstallments(e.target.value)} />
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {INSTALLMENT_SHORTCUTS.map((n) => (
+                          <button key={n} type="button" onClick={() => setInstallments(String(n))}
+                            className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+                              installmentsCount === n
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-input text-muted-foreground hover:bg-accent"
+                            }`}>
+                            {n}x
+                          </button>
+                        ))}
+                        <button type="button"
+                          onClick={() => {
+                            const input = installmentsInputRef.current;
+                            if (input) {
+                              input.focus();
+                              input.select();
+                            }
+                          }}
+                          className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+                            isCustomInstallments
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input text-muted-foreground hover:bg-accent"
+                          }`}>
+                          {isCustomInstallments ? `${installmentsCount}x` : "Outro…"}
+                        </button>
+                      </div>
+                    </Field>
+                  ) : null}
+
+                  {isParcelado ? (
+                    <Field>
+                      <FieldLabel>Como informar o valor?</FieldLabel>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" variant={txForm.amount_mode === "total" ? "default" : "outline"}
+                          onClick={() => setTxForm((p) => ({ ...p, amount_mode: "total" }))}>
+                          Valor total
+                        </Button>
+                        <Button type="button" variant={txForm.amount_mode === "parcela" ? "default" : "outline"}
+                          onClick={() => setTxForm((p) => ({ ...p, amount_mode: "parcela" }))}>
+                          Por parcela
+                        </Button>
+                      </div>
+                    </Field>
+                  ) : null}
+
+                  <Field>
+                    <FieldLabel htmlFor="tx-amount">
+                      {isParcelado
+                        ? txForm.amount_mode === "total"
+                          ? "Valor total da compra (R$)"
+                          : "Valor de cada parcela (R$)"
+                        : "Valor (R$)"}
+                    </FieldLabel>
+                    <Input id="tx-amount" type="number" step="0.01" min="0" value={txForm.amount}
+                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} placeholder="0,00" />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="tx-invoice">{isParcelado ? "Fatura da 1ª parcela" : "Fatura"}</FieldLabel>
+                    <Select value={txForm.reference_month}
+                      onValueChange={(value) => setTxForm({ ...txForm, reference_month: value })}>
+                      <SelectTrigger id="tx-invoice">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {referenceOptions.map((ref) => (
+                          <SelectItem key={ref} value={ref}>{monthLabel(ref)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  {/* Preview do plano de parcelas */}
+                  {isParcelado && amountValue > 0 ? (
+                    <div className="rounded-lg border bg-muted/40 p-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm font-medium">
+                          {installmentsCount}x de {formatCurrency(perInstallment)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">Total {formatCurrency(planTotal)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        1ª em {monthLabel(txForm.reference_month)} · última em{" "}
+                        {monthLabel(shiftMonth(txForm.reference_month, installmentsCount - 1))}
+                      </p>
+                      <div className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+                        {installmentPlan.map((value, i) => (
+                          <div key={i} className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              {i + 1}/{installmentsCount} · {monthLabel(shiftMonth(txForm.reference_month, i))}
+                            </span>
+                            <span className="tabular-nums">{formatCurrency(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
 
               <FieldError>{txError}</FieldError>
             </FieldGroup>

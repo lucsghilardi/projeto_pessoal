@@ -4,7 +4,7 @@ export type ReceiptConfidence = "alta" | "media" | "baixa";
 
 export type AiReceiptDestination = "cartao" | "conta";
 
-export type ReceiptDocumentType = "comprovante" | "fatura";
+export type ReceiptDocumentType = "comprovante" | "fatura" | "extrato";
 
 export interface ReceiptItem {
   amount: number | null;
@@ -49,8 +49,10 @@ export interface AiReceiptBatchItem {
 }
 
 export interface AiReceiptBatchPayload {
+  destination: AiReceiptDestination;
   receipt_path: string;
-  credit_card_id: number;
+  credit_card_id?: number;
+  bank_account_id?: number;
   items: AiReceiptBatchItem[];
 }
 
@@ -58,4 +60,15 @@ export interface AiReceiptBatchResult {
   message: string;
   created: number;
   skipped: number;
+}
+
+export interface AiReceiptCheckDuplicatesPayload {
+  destination: AiReceiptDestination;
+  credit_card_id?: number;
+  bank_account_id?: number;
+  items: Array<{ description: string; amount: number; date: string }>;
+}
+
+export interface AiReceiptCheckDuplicatesResult {
+  duplicates: boolean[];
 }

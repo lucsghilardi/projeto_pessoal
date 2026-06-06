@@ -80,10 +80,14 @@ export interface CreditCardTransactionPayload {
   amount: number;
   purchase_date: string;
   installments_total?: number;
+  // Quando true, "amount" é o valor total da compra (dividido entre as parcelas no backend).
+  amount_is_total?: boolean;
   reference_month?: string;
 }
 
 export interface CreditCardTransactionUpdatePayload {
+  // Permite mover o lançamento para outro cartão (lancei no cartão errado).
+  credit_card_id?: number;
   category_id: number | null;
   description: string;
   amount: number;

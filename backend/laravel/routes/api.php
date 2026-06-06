@@ -46,6 +46,7 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
 
         // Lançamento de despesas via IA (foto de comprovante -> extração -> confirmação)
         Route::post('/ai-receipt/parse', [AiReceiptController::class, 'parse']);
+        Route::post('/ai-receipt/check-duplicates', [AiReceiptController::class, 'checkDuplicates']);
         Route::post('/ai-receipt/confirm', [AiReceiptController::class, 'confirm']);
         Route::post('/ai-receipt/confirm-batch', [AiReceiptController::class, 'confirmBatch']);
         Route::get('/receipts/{type}/{id}', [AiReceiptController::class, 'download']);

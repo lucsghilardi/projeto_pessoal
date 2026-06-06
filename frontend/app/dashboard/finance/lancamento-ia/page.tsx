@@ -7,6 +7,7 @@ import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { appToast } from "@/lib/toast";
 import {
+  checkAiReceiptDuplicates,
   confirmAiReceipt,
   confirmAiReceiptBatch,
   getBankAccounts,
@@ -108,8 +109,10 @@ export default function AiReceiptPage() {
   // Modo comprovante (1 lançamento)
   const [form, setForm] = useState<ReviewForm>(emptyForm());
 
-  // Modo fatura (vários lançamentos)
+  // Modo lote (fatura de cartão ou extrato de conta)
+  const [batchDestination, setBatchDestination] = useState<AiReceiptDestination>("cartao");
   const [batchCardId, setBatchCardId] = useState("");
+  const [batchAccountId, setBatchAccountId] = useState("");
   const [rows, setRows] = useState<BatchRow[]>([]);
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -155,6 +158,7 @@ export default function AiReceiptPage() {
     setConfidence(null);
     setRows([]);
     setBatchCardId("");
+    setBatchAccountId("");
     setFormError(null);
   }
 
@@ -186,24 +190,32 @@ export default function AiReceiptPage() {
       setDocumentType(result.document_type);
       setConfidence(result.items[0]?.confidence ?? null);
 
-      if (result.document_type === "fatura") {
-        setBatchCardId(
+      if (result.document_type !== "comprovante") {
+        const dest = result.suggestion.destination;
+        const cardId =
           result.suggested_card_id != null
             ? String(result.suggested_card_id)
             : cards[0]
               ? String(cards[0].id)
-              : "",
-        );
-        setRows(
-          result.items.map((it) => ({
-            include: !it.duplicate,
-            description: it.description ?? "",
-            amount: it.amount != null ? String(it.amount) : "",
-            date: it.purchase_date ?? today(),
-            category_id: it.category_id != null ? String(it.category_id) : "",
-            duplicate: it.duplicate,
-          })),
-        );
+              : "";
+        const accId = accounts[0] ? String(accounts[0].id) : "";
+        const initialRows: BatchRow[] = result.items.map((it) => ({
+          include: !it.duplicate,
+          description: it.description ?? "",
+          amount: it.amount != null ? String(it.amount) : "",
+          date: it.purchase_date ?? today(),
+          category_id: it.category_id != null ? String(it.category_id) : "",
+          duplicate: it.duplicate,
+        }));
+
+        setBatchDestination(dest);
+        setBatchCardId(cardId);
+        setBatchAccountId(accId);
+        setRows(initialRows);
+
+        // Reavalia duplicados contra o destino escolhido (essencial quando o cartão
+        // não é auto-detectado, como em CSV sem o número do cartão).
+        await refreshDuplicates(initialRows, dest, cardId, accId);
       } else {
         const it = result.items[0];
         setForm({
@@ -226,6 +238,53 @@ export default function AiReceiptPage() {
 
   function updateRow(index: number, patch: Partial<BatchRow>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  // Reavalia, no servidor, quais linhas já existem no destino selecionado e marca/desmarca.
+  async function refreshDuplicates(
+    sourceRows: BatchRow[],
+    destination: AiReceiptDestination,
+    cardId: string,
+    accountId: string,
+  ) {
+    const targetId = destination === "cartao" ? cardId : accountId;
+    if (sourceRows.length === 0 || !targetId) return;
+
+    try {
+      const res = await checkAiReceiptDuplicates({
+        destination,
+        credit_card_id: destination === "cartao" ? Number(cardId) : undefined,
+        bank_account_id: destination === "conta" ? Number(accountId) : undefined,
+        items: sourceRows.map((row) => ({
+          description: row.description.trim(),
+          amount: Number.parseFloat(row.amount) || 0,
+          date: row.date,
+        })),
+      });
+      setRows((prev) =>
+        prev.map((row, i) => {
+          const dup = res.duplicates[i] ?? false;
+          return { ...row, duplicate: dup, include: !dup };
+        }),
+      );
+    } catch {
+      // Em caso de falha, mantém os flags atuais.
+    }
+  }
+
+  function changeBatchDestination(destination: AiReceiptDestination) {
+    setBatchDestination(destination);
+    void refreshDuplicates(rows, destination, batchCardId, batchAccountId);
+  }
+
+  function changeBatchCard(cardId: string) {
+    setBatchCardId(cardId);
+    void refreshDuplicates(rows, "cartao", cardId, batchAccountId);
+  }
+
+  function changeBatchAccount(accountId: string) {
+    setBatchAccountId(accountId);
+    void refreshDuplicates(rows, "conta", batchCardId, accountId);
   }
 
   async function handleConfirm(event: React.FormEvent) {
@@ -287,8 +346,13 @@ export default function AiReceiptPage() {
   async function handleConfirmBatch() {
     setFormError(null);
     if (!receiptPath) return;
-    if (!batchCardId) {
-      setFormError("Selecione o cartão da fatura.");
+
+    if (batchDestination === "cartao" && !batchCardId) {
+      setFormError("Selecione o cartão.");
+      return;
+    }
+    if (batchDestination === "conta" && !batchAccountId) {
+      setFormError("Selecione a conta.");
       return;
     }
 
@@ -308,8 +372,10 @@ export default function AiReceiptPage() {
     setSaving(true);
     try {
       const result = await confirmAiReceiptBatch({
+        destination: batchDestination,
         receipt_path: receiptPath,
-        credit_card_id: Number(batchCardId),
+        credit_card_id: batchDestination === "cartao" ? Number(batchCardId) : undefined,
+        bank_account_id: batchDestination === "conta" ? Number(batchAccountId) : undefined,
         items: selected.map((row) => ({
           description: row.description.trim(),
           amount: Number.parseFloat(row.amount),
@@ -320,7 +386,7 @@ export default function AiReceiptPage() {
       appToast.success(result.message);
       resetAll();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Não foi possível importar a fatura.";
+      const message = error instanceof ApiError ? error.message : "Não foi possível importar os lançamentos.";
       setFormError(message);
       appToast.error(message);
     } finally {
@@ -336,7 +402,7 @@ export default function AiReceiptPage() {
   const selectedTotal = rows
     .filter((r) => r.include)
     .reduce((sum, r) => sum + (Number.parseFloat(r.amount) || 0), 0);
-  const isBatch = documentType === "fatura";
+  const isBatch = documentType === "fatura" || documentType === "extrato";
 
   return (
     <div className="space-y-6">
@@ -356,7 +422,7 @@ export default function AiReceiptPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf"
+              accept="image/*,application/pdf,.csv,.ofx,.qfx,text/csv"
               capture="environment"
               className="hidden"
               onChange={(e) => handlePickFile(e.target.files?.[0] ?? null)}
@@ -595,30 +661,71 @@ export default function AiReceiptPage() {
           </Card>
         ) : null}
 
-        {/* Modo fatura: tabela de vários lançamentos */}
+        {/* Modo lote: tabela de vários lançamentos (fatura de cartão ou extrato de conta) */}
         {isBatch ? (
           <Card>
             <CardHeader>
-              <CardTitle>Lançamentos da fatura</CardTitle>
+              <CardTitle>{documentType === "extrato" ? "Lançamentos do extrato" : "Lançamentos da fatura"}</CardTitle>
               <CardDescription>
                 Marque os que deseja lançar; os já existentes vêm desmarcados e são ignorados automaticamente.
+                {batchDestination === "conta"
+                  ? " Importar para uma conta não altera o saldo (o extrato já o reflete)."
+                  : ""}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:max-w-xs">
-                <Field>
-                  <FieldLabel htmlFor="batch-card">Cartão da fatura</FieldLabel>
-                  <Select value={batchCardId} onValueChange={setBatchCardId}>
-                    <SelectTrigger id="batch-card">
-                      <SelectValue placeholder="Selecione o cartão" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cards.map((card) => (
-                        <SelectItem key={card.id} value={String(card.id)}>{card.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <Field className="sm:max-w-xs">
+                  <FieldLabel>Onde lançar</FieldLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={batchDestination === "cartao" ? "default" : "outline"}
+                      onClick={() => changeBatchDestination("cartao")}
+                    >
+                      <CreditCardIcon className="size-4" />
+                      Cartão
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={batchDestination === "conta" ? "default" : "outline"}
+                      onClick={() => changeBatchDestination("conta")}
+                    >
+                      <Landmark className="size-4" />
+                      Conta
+                    </Button>
+                  </div>
                 </Field>
+
+                {batchDestination === "cartao" ? (
+                  <Field className="sm:max-w-xs">
+                    <FieldLabel htmlFor="batch-card">Cartão</FieldLabel>
+                    <Select value={batchCardId} onValueChange={changeBatchCard}>
+                      <SelectTrigger id="batch-card">
+                        <SelectValue placeholder="Selecione o cartão" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cards.map((card) => (
+                          <SelectItem key={card.id} value={String(card.id)}>{card.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : (
+                  <Field className="sm:max-w-xs">
+                    <FieldLabel htmlFor="batch-account">Conta</FieldLabel>
+                    <Select value={batchAccountId} onValueChange={changeBatchAccount}>
+                      <SelectTrigger id="batch-account">
+                        <SelectValue placeholder="Selecione a conta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>{account.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border">
@@ -703,9 +810,14 @@ export default function AiReceiptPage() {
                 </Table>
               </div>
 
-              {cards.length === 0 ? (
+              {batchDestination === "cartao" && cards.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Cadastre um cartão em “Cartões de crédito” primeiro.
+                </p>
+              ) : null}
+              {batchDestination === "conta" && accounts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Cadastre uma conta em “Contas (saldos)” primeiro.
                 </p>
               ) : null}
 
