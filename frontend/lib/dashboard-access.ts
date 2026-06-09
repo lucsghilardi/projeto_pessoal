@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, CreditCard, Gem, Landmark, LayoutDashboard, ScanLine, Tags, Target, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, CreditCard, Gem, Handshake, Landmark, LayoutDashboard, ScanLine, Tags, Target, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -25,6 +25,8 @@ const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/investments", roles: ALL_ROLES },
   { path: "/dashboard/assets", roles: ALL_ROLES },
   { path: "/dashboard/finance/credit-cards", roles: ALL_ROLES },
+  { path: "/dashboard/finance/plano-1-milhao", roles: ALL_ROLES },
+  { path: "/dashboard/finance/acertos", roles: ALL_ROLES },
   { path: "/dashboard/finance", roles: ALL_ROLES },
   { path: "/dashboard/users", roles: ["admin"] },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
@@ -49,9 +51,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
     label: "Financeiro",
     items: [
       { title: "Painel", url: "/dashboard/finance", roles: ALL_ROLES, icon: LayoutDashboard },
+      { title: "Relatórios", url: "/dashboard/finance/reports", roles: ALL_ROLES, icon: BarChart3 },
+      { title: "Plano 1 Milhão", url: "/dashboard/finance/plano-1-milhao", roles: ALL_ROLES, icon: Target },
       { title: "Lançar via IA", url: "/dashboard/finance/lancamento-ia", roles: ALL_ROLES, icon: ScanLine },
       { title: "Contas a pagar", url: "/dashboard/finance/payables", roles: ALL_ROLES, icon: ArrowDownCircle },
       { title: "Contas a receber", url: "/dashboard/finance/receivables", roles: ALL_ROLES, icon: ArrowUpCircle },
+      { title: "Acertos", url: "/dashboard/finance/acertos", roles: ALL_ROLES, icon: Handshake },
       { title: "Contas (saldos)", url: "/dashboard/finance/accounts", roles: ALL_ROLES, icon: Banknote },
       { title: "Categorias", url: "/dashboard/finance/categories", roles: ALL_ROLES, icon: Tags },
     ],

@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Finance\AcertoController;
 use App\Http\Controllers\Api\Finance\AiReceiptController;
 use App\Http\Controllers\Api\Finance\BankAccountController;
 use App\Http\Controllers\Api\Finance\CreditCardController;
 use App\Http\Controllers\Api\Finance\CreditCardInvoiceController;
 use App\Http\Controllers\Api\Finance\CreditCardTransactionController;
 use App\Http\Controllers\Api\Finance\FinanceCategoryController;
+use App\Http\Controllers\Api\Finance\FinanceReportController;
 use App\Http\Controllers\Api\Finance\FinanceSummaryController;
 use App\Http\Controllers\Api\Finance\PayableController;
 use App\Http\Controllers\Api\Finance\ReceivableController;
@@ -43,6 +45,7 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
     // Financeiro (escopado pelo usuario autenticado)
     Route::prefix('finance')->group(function () {
         Route::get('/summary', [FinanceSummaryController::class, 'index']);
+        Route::get('/reports', [FinanceReportController::class, 'index']);
 
         // Lançamento de despesas via IA (foto de comprovante -> extração -> confirmação)
         Route::post('/ai-receipt/parse', [AiReceiptController::class, 'parse']);
@@ -63,6 +66,11 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::post('/receivables/{receivable}/receive', [ReceivableController::class, 'receive']);
         Route::post('/receivables/{receivable}/unreceive', [ReceivableController::class, 'unreceive']);
         Route::apiResource('receivables', ReceivableController::class)->except(['show']);
+
+        // Acertos: a pagar/receber sem prazo, com baixa parcial e histórico.
+        Route::post('/acertos/{acerto}/settlements', [AcertoController::class, 'settle']);
+        Route::delete('/acertos/{acerto}/settlements/{settlement}', [AcertoController::class, 'unsettle']);
+        Route::apiResource('acertos', AcertoController::class)->except(['show']);
 
         // Cartões de crédito (cartão -> fatura -> lançamentos + pagamentos)
         Route::get('/credit-cards/{creditCard}/resolve-invoice', [CreditCardTransactionController::class, 'resolveInvoice']);

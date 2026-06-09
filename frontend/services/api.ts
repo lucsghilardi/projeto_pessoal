@@ -24,12 +24,16 @@ import {
     ResolvedInvoiceWindow,
 } from '@/types/CreditCard';
 import {
+    Acerto,
+    AcertoDirection,
+    AcertoPayload,
     BankAccount,
     BankAccountPayload,
     BankAccountsResponse,
     FinanceCategory,
     FinanceCategoryKind,
     FinanceCategoryPayload,
+    FinanceReport,
     FinanceSummary,
     Payable,
     PayablePayload,
@@ -255,6 +259,14 @@ export function getFinanceSummary(month?: string) {
     return apiFetch<FinanceSummary>(`/finance/summary${query}`);
 }
 
+export function getFinanceReports(params?: { start?: string; end?: string }) {
+    const query = new URLSearchParams();
+    if (params?.start) query.set('start', params.start);
+    if (params?.end) query.set('end', params.end);
+    const qs = query.toString();
+    return apiFetch<FinanceReport>(`/finance/reports${qs ? `?${qs}` : ''}`);
+}
+
 export function getFinanceCategories(kind?: FinanceCategoryKind) {
     const query = kind ? `?kind=${kind}` : '';
     return apiFetch<FinanceCategory[]>(`/finance/categories${query}`);
@@ -396,6 +408,49 @@ export function unreceiveReceivable(id: number) {
 
 export function deleteReceivable(id: number, scope: 'one' | 'group' = 'one') {
     return apiFetch<{ message: string }>(`/finance/receivables/${id}?scope=${scope}`, {
+        method: 'DELETE',
+    });
+}
+
+// ===== Acertos (a pagar/receber sem prazo) =====
+
+export function getAcertos(direction?: AcertoDirection) {
+    const query = direction ? `?direction=${direction}` : '';
+    return apiFetch<Acerto[]>(`/finance/acertos${query}`);
+}
+
+export function createAcerto(data: AcertoPayload) {
+    return apiFetch<Acerto>('/finance/acertos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateAcerto(id: number, data: Omit<AcertoPayload, 'direction'>) {
+    return apiFetch<Acerto>(`/finance/acertos/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteAcerto(id: number) {
+    return apiFetch<{ message: string }>(`/finance/acertos/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export function settleAcerto(
+    id: number,
+    data: { amount: number; bank_account_id: number; settled_at?: string },
+) {
+    return apiFetch<Acerto>(`/finance/acertos/${id}/settlements`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteAcertoSettlement(acertoId: number, settlementId: number) {
+    return apiFetch<Acerto>(`/finance/acertos/${acertoId}/settlements/${settlementId}`, {
         method: 'DELETE',
     });
 }
