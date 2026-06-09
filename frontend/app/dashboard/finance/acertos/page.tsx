@@ -5,6 +5,8 @@ import { History, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { SummaryCard } from "@/components/dashboard/summary-card";
+import { formatCurrency, formatFullDate, toNumber, todayISO } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import {
   createAcerto,
@@ -46,22 +48,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function toNumber(value: string | number) {
-  return typeof value === "number" ? value : Number.parseFloat(value || "0");
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 type FormState = {
   direction: AcertoDirection;
@@ -211,7 +197,7 @@ export default function AcertosPage() {
     setSettleTarget(acerto);
     setSettleAmount(String(toNumber(acerto.remaining)));
     setSettleAccountId(accounts[0] ? String(accounts[0].id) : "");
-    setSettleDate(today());
+    setSettleDate(todayISO());
   }
 
   async function handleSettle(event: React.FormEvent) {
@@ -516,7 +502,7 @@ export default function AcertosPage() {
                 <TableBody>
                   {historyTarget?.settlements?.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="tabular-nums">{formatDate(s.settled_at)}</TableCell>
+                      <TableCell className="tabular-nums">{formatFullDate(s.settled_at)}</TableCell>
                       <TableCell>{s.bank_account?.name ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatCurrency(toNumber(s.amount))}</TableCell>
                       <TableCell className="text-right">
@@ -645,19 +631,6 @@ function AcertoSection({
             </Table>
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SummaryCard({ label, value, accentClass }: { label: string; value: string; accentClass?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold tabular-nums ${accentClass ?? ""}`}>{value}</p>
       </CardContent>
     </Card>
   );

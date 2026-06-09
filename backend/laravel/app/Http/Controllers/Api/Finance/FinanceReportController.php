@@ -18,6 +18,11 @@ class FinanceReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'start' => ['nullable', 'regex:/^\d{4}-\d{2}$/'],
+            'end' => ['nullable', 'regex:/^\d{4}-\d{2}$/'],
+        ]);
+
         $userId = $request->user()->id;
 
         // Janela de meses: ?end=YYYY-MM&start=YYYY-MM (default: últimos 12 meses até o atual).

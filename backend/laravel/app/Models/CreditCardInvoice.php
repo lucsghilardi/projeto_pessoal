@@ -17,8 +17,8 @@ class CreditCardInvoice extends Model
     ];
 
     protected $casts = [
-        'closing_date' => 'date',
-        'due_date' => 'date',
+        'closing_date' => 'date:Y-m-d',
+        'due_date' => 'date:Y-m-d',
     ];
 
     // Totais e status são calculados a partir dos lançamentos e pagamentos.

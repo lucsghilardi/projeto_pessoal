@@ -18,6 +18,8 @@ class ReceivableController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate(['month' => ['nullable', 'regex:/^\d{4}-\d{2}$/']]);
+
         [$start, $end] = $this->monthRange($request->query('month'));
 
         $items = Receivable::query()
@@ -62,7 +64,8 @@ class ReceivableController extends Controller
             for ($i = 0; $i < self::FIXED_MONTHS; $i++) {
                 Receivable::create([
                     ...$base,
-                    'due_date' => $first->copy()->addMonths($i),
+                    // NoOverflow: data dia 31 cai no último dia dos meses mais curtos.
+                    'due_date' => $first->copy()->addMonthsNoOverflow($i),
                     'kind' => 'fixa',
                     'group_id' => $group,
                 ]);
@@ -91,14 +94,25 @@ class ReceivableController extends Controller
             'due_date' => ['required', 'date'],
         ]);
 
-        $receivable->update([
-            'description' => $data['description'],
-            'category_id' => $data['category_id'] ?? null,
-            'amount' => $data['amount'],
-            'due_date' => $data['due_date'],
-        ]);
+        DB::transaction(function () use ($receivable, $data) {
+            // Se já foi recebido, ajusta o saldo creditado pela diferença do novo valor.
+            if ($receivable->is_received && $receivable->bank_account_id) {
+                $difference = round((float) $data['amount'] - (float) $receivable->amount, 2);
 
-        return response()->json($receivable->fresh()->load('category:id,name,color,kind'));
+                if ($difference !== 0.0) {
+                    BankAccount::whereKey($receivable->bank_account_id)->increment('balance', $difference);
+                }
+            }
+
+            $receivable->update([
+                'description' => $data['description'],
+                'category_id' => $data['category_id'] ?? null,
+                'amount' => $data['amount'],
+                'due_date' => $data['due_date'],
+            ]);
+        });
+
+        return response()->json($receivable->fresh()->load(['category:id,name,color,kind', 'bankAccount:id,name']));
     }
 
     /**

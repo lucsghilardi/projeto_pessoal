@@ -14,18 +14,29 @@ class CreditCardController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $userId = $request->user()->id;
+
+        // Totais agregados de uma vez (evita 2 queries por cartão).
+        $chargedByCard = CreditCardTransaction::query()
+            ->where('user_id', $userId)
+            ->selectRaw('credit_card_id, sum(amount) as total')
+            ->groupBy('credit_card_id')
+            ->pluck('total', 'credit_card_id');
+
+        $paidByCard = CreditCardInvoicePayment::query()
+            ->where('credit_card_invoice_payments.user_id', $userId)
+            ->join('credit_card_invoices', 'credit_card_invoices.id', '=', 'credit_card_invoice_payments.credit_card_invoice_id')
+            ->selectRaw('credit_card_invoices.credit_card_id, sum(credit_card_invoice_payments.amount) as total')
+            ->groupBy('credit_card_invoices.credit_card_id')
+            ->pluck('total', 'credit_card_id');
+
         $cards = CreditCard::query()
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $userId)
             ->orderBy('name')
             ->get()
-            ->map(function (CreditCard $card) {
-                $charged = (float) CreditCardTransaction::query()
-                    ->where('credit_card_id', $card->id)
-                    ->sum('amount');
-
-                $paid = (float) CreditCardInvoicePayment::query()
-                    ->whereHas('invoice', fn ($q) => $q->where('credit_card_id', $card->id))
-                    ->sum('amount');
+            ->map(function (CreditCard $card) use ($chargedByCard, $paidByCard) {
+                $charged = (float) ($chargedByCard[$card->id] ?? 0);
+                $paid = (float) ($paidByCard[$card->id] ?? 0);
 
                 $outstanding = round($charged - $paid, 2);
                 $available = $card->limit !== null

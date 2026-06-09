@@ -7,6 +7,17 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 }
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { SummaryCard } from "@/components/dashboard/summary-card";
+import {
+  currentMonth,
+  formatCurrency,
+  formatDate,
+  formatFullDate,
+  monthLabel,
+  shiftMonth,
+  toNumber,
+  todayISO,
+} from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import {
   createCreditCardTransaction,
@@ -69,39 +80,6 @@ const STATUS_CLASSES: Record<CreditCardInvoiceStatus, string> = {
   paga: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function toNumber(value: string) {
-  return Number.parseFloat(value || "0");
-}
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function monthLabel(month: string) {
-  const [year, mo] = month.split("-").map(Number);
-  return new Date(year, mo - 1, 1)
-    .toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
-    .replace(/^./, (c) => c.toUpperCase());
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, mo] = month.split("-").map(Number);
-  const d = new Date(year, mo - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
-function formatFullDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 type AmountMode = "total" | "parcela";
 
 type TxFormState = {
@@ -121,7 +99,7 @@ function emptyTxForm(): TxFormState {
     category_id: "",
     description: "",
     amount: "",
-    purchase_date: new Date().toISOString().slice(0, 10),
+    purchase_date: todayISO(),
     installments_total: "1",
     amount_mode: "total",
     reference_month: currentMonth(),
@@ -248,7 +226,7 @@ export default function CreditCardInvoicePage() {
     setTxError(null);
     setIsTxOpen(true);
     // Sugere a fatura pela data de hoje.
-    void suggestInvoice(new Date().toISOString().slice(0, 10));
+    void suggestInvoice(todayISO());
   }
 
   function openEditTx(tx: CreditCardTransaction) {
@@ -375,7 +353,7 @@ export default function CreditCardInvoicePage() {
     if (!invoice) return;
     setPayAccountId(accounts[0] ? String(accounts[0].id) : "");
     setPayAmount(invoice.remaining > 0 ? String(invoice.remaining.toFixed(2)) : "");
-    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayDate(todayISO());
     setIsPayOpen(true);
   }
 
@@ -858,18 +836,5 @@ export default function CreditCardInvoicePage() {
         </SheetContent>
       </Sheet>
     </div>
-  );
-}
-
-function SummaryCard({ label, value, accentClass }: { label: string; value: string; accentClass?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold tabular-nums ${accentClass ?? ""}`}>{value}</p>
-      </CardContent>
-    </Card>
   );
 }

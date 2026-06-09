@@ -26,8 +26,8 @@ class Payable extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'due_date' => 'date',
-        'paid_at' => 'date',
+        'due_date' => 'date:Y-m-d',
+        'paid_at' => 'date:Y-m-d',
         'is_paid' => 'boolean',
     ];
 

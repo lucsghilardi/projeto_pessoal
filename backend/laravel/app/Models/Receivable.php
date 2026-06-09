@@ -22,8 +22,8 @@ class Receivable extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'due_date' => 'date',
-        'received_at' => 'date',
+        'due_date' => 'date:Y-m-d',
+        'received_at' => 'date:Y-m-d',
         'is_received' => 'boolean',
     ];
 

@@ -15,6 +15,7 @@ import {
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { compactCurrency, currentMonth, formatCurrency, monthShort, shiftMonth } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { getFinanceReports } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -36,32 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function compactCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, mo] = month.split("-").map(Number);
-  const d = new Date(year, mo - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// "2026-06" -> "jun/26"
-function monthShort(month: string) {
-  const [year, mo] = month.split("-").map(Number);
-  return new Date(year, mo - 1, 1)
-    .toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
-    .replace(".", "");
-}
 
 const RANGE_OPTIONS = [
   { value: "3", label: "Últimos 3 meses" },

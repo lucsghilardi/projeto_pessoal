@@ -5,6 +5,7 @@ import { CreditCard as CreditCardIcon, FileText, Landmark, ScanLine, Sparkles, U
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { formatCurrency, todayISO } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import {
   checkAiReceiptDuplicates,
@@ -71,25 +72,17 @@ const CONFIDENCE_LABELS: Record<ReceiptConfidence, string> = {
   baixa: "Confiança baixa — confira com atenção",
 };
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function emptyForm(): ReviewForm {
   return {
     destination: "conta",
     description: "",
     amount: "",
-    date: today(),
+    date: todayISO(),
     category_id: "",
     credit_card_id: "",
     installments_total: "1",
     bank_account_id: "",
   };
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
 export default function AiReceiptPage() {
@@ -203,7 +196,7 @@ export default function AiReceiptPage() {
           include: !it.duplicate,
           description: it.description ?? "",
           amount: it.amount != null ? String(it.amount) : "",
-          date: it.purchase_date ?? today(),
+          date: it.purchase_date ?? todayISO(),
           category_id: it.category_id != null ? String(it.category_id) : "",
           duplicate: it.duplicate,
         }));
@@ -222,7 +215,7 @@ export default function AiReceiptPage() {
           destination: result.suggestion.destination,
           description: it?.description ?? "",
           amount: it?.amount != null ? String(it.amount) : "",
-          date: it?.purchase_date ?? today(),
+          date: it?.purchase_date ?? todayISO(),
           category_id: it?.category_id != null ? String(it.category_id) : "",
           credit_card_id: cards[0] ? String(cards[0].id) : "",
           installments_total: it?.installments_total != null ? String(it.installments_total) : "1",

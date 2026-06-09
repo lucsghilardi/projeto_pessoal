@@ -17,6 +17,7 @@ import {
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { compactCurrency, formatCurrency } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { getInvestmentSummary } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -34,14 +35,6 @@ import {
 
 const MONTHS_CAP = 600; // 50 anos: horizonte máximo de projeção.
 const DEFAULT_META = 1_000_000;
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function compactCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
 
 // Taxa anual (decimal, ex. 0.10) -> taxa mensal equivalente.
 function monthlyRate(annual: number) {

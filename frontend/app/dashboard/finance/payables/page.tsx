@@ -5,6 +5,8 @@ import { Check, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } fro
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { SummaryCard } from "@/components/dashboard/summary-card";
+import { currentMonth, formatCurrency, formatDate, monthLabel, shiftMonth, toNumber, todayISO } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import {
   createPayable,
@@ -53,35 +55,6 @@ const KIND_LABELS: Record<PayableKind, string> = {
   parcelada: "Parcelada",
 };
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function toNumber(value: string) {
-  return Number.parseFloat(value || "0");
-}
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function monthLabel(month: string) {
-  const [year, mo] = month.split("-").map(Number);
-  return new Date(year, mo - 1, 1)
-    .toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
-    .replace(/^./, (c) => c.toUpperCase());
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, mo] = month.split("-").map(Number);
-  const d = new Date(year, mo - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
 type FormState = {
   description: string;
   category_id: string;
@@ -95,7 +68,7 @@ const emptyForm: FormState = {
   description: "",
   category_id: "",
   amount: "",
-  due_date: new Date().toISOString().slice(0, 10),
+  due_date: todayISO(),
   kind: "avulsa",
   installments_total: "12",
 };
@@ -145,7 +118,6 @@ export default function PayablesPage() {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
 
   const total = payables.reduce((sum, p) => sum + toNumber(p.amount), 0);
@@ -222,7 +194,7 @@ export default function PayablesPage() {
   function openPay(payable: Payable) {
     setPayTarget(payable);
     setPayAccountId(accounts[0] ? String(accounts[0].id) : "");
-    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayDate(todayISO());
   }
 
   async function handlePay(event: React.FormEvent) {
@@ -531,18 +503,5 @@ export default function PayablesPage() {
         </SheetContent>
       </Sheet>
     </div>
-  );
-}
-
-function SummaryCard({ label, value, accentClass }: { label: string; value: string; accentClass?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold tabular-nums ${accentClass ?? ""}`}>{value}</p>
-      </CardContent>
-    </Card>
   );
 }

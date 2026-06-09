@@ -18,6 +18,8 @@ class PayableController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $request->validate(['month' => ['nullable', 'regex:/^\d{4}-\d{2}$/']]);
+
         [$start, $end] = $this->monthRange($request->query('month'));
 
         $items = Payable::query()
@@ -65,7 +67,8 @@ class PayableController extends Controller
             for ($i = 0; $i < $total; $i++) {
                 Payable::create([
                     ...$base,
-                    'due_date' => $first->copy()->addMonths($i),
+                    // NoOverflow: vencimento dia 31 cai no último dia dos meses mais curtos.
+                    'due_date' => $first->copy()->addMonthsNoOverflow($i),
                     'kind' => 'parcelada',
                     'installment_number' => $i + 1,
                     'installments_total' => $total,
@@ -78,7 +81,7 @@ class PayableController extends Controller
             for ($i = 0; $i < self::FIXED_MONTHS; $i++) {
                 Payable::create([
                     ...$base,
-                    'due_date' => $first->copy()->addMonths($i),
+                    'due_date' => $first->copy()->addMonthsNoOverflow($i),
                     'kind' => 'fixa',
                     'group_id' => $group,
                 ]);
@@ -111,14 +114,25 @@ class PayableController extends Controller
             'due_date' => ['required', 'date'],
         ]);
 
-        $payable->update([
-            'description' => $data['description'],
-            'category_id' => $data['category_id'] ?? null,
-            'amount' => $data['amount'],
-            'due_date' => $data['due_date'],
-        ]);
+        DB::transaction(function () use ($payable, $data) {
+            // Se a conta já foi paga, ajusta o saldo debitado pela diferença do novo valor.
+            if ($payable->is_paid && $payable->bank_account_id) {
+                $difference = round((float) $data['amount'] - (float) $payable->amount, 2);
 
-        return response()->json($payable->fresh()->load('category:id,name,color,kind'));
+                if ($difference !== 0.0) {
+                    BankAccount::whereKey($payable->bank_account_id)->decrement('balance', $difference);
+                }
+            }
+
+            $payable->update([
+                'description' => $data['description'],
+                'category_id' => $data['category_id'] ?? null,
+                'amount' => $data['amount'],
+                'due_date' => $data['due_date'],
+            ]);
+        });
+
+        return response()->json($payable->fresh()->load(['category:id,name,color,kind', 'bankAccount:id,name']));
     }
 
     /**

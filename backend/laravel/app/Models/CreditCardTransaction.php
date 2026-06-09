@@ -24,7 +24,7 @@ class CreditCardTransaction extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'purchase_date' => 'date',
+        'purchase_date' => 'date:Y-m-d',
     ];
 
     public function user(): BelongsTo

@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { formatCurrency, toNumber } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { createAsset, deleteAsset, getAssets, updateAsset } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -22,14 +23,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function toNumber(value: string) {
-  return Number.parseFloat(value || "0");
-}
 
 export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);

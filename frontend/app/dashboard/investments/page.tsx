@@ -19,6 +19,8 @@ import {
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { SummaryCard } from "@/components/dashboard/summary-card";
+import { formatCurrency, toNumber, todayISO } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import {
   addContribution,
@@ -127,19 +129,8 @@ const emptyForm: FormState = {
   tag_ids: [],
 };
 
-function formatCurrency(value: number, currency: string = "BRL") {
-  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "pt-BR", {
-    style: "currency",
-    currency: currency === "USD" ? "USD" : "BRL",
-  }).format(value);
-}
-
 function formatPercent(value: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(2).replace(".", ",")}%`;
-}
-
-function toNumber(value: string | number) {
-  return typeof value === "number" ? value : Number.parseFloat(value || "0");
 }
 
 function investmentToForm(investment: Investment): FormState {
@@ -376,7 +367,7 @@ export default function InvestmentsPage() {
   function openContribute(investment: Investment) {
     setContributeTarget(investment);
     setContributeAmount("");
-    setContributeDate(new Date().toISOString().slice(0, 10));
+    setContributeDate(todayISO());
     setContributeError(null);
   }
 
@@ -954,32 +945,6 @@ export default function InvestmentsPage() {
         </SheetContent>
       </Sheet>
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  accentClass,
-  icon,
-}: {
-  label: string;
-  value: string;
-  accentClass?: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-1">
-          {icon}
-          {label}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold tabular-nums ${accentClass ?? ""}`}>{value}</p>
-      </CardContent>
-    </Card>
   );
 }
 

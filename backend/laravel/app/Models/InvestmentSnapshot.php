@@ -15,7 +15,7 @@ class InvestmentSnapshot extends Model
     ];
 
     protected $casts = [
-        'snapshot_date' => 'date',
+        'snapshot_date' => 'date:Y-m-d',
         'applied_amount' => 'decimal:2',
         'current_amount' => 'decimal:2',
     ];

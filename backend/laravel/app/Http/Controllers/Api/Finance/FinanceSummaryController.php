@@ -16,6 +16,8 @@ class FinanceSummaryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $request->validate(['month' => ['nullable', 'regex:/^\d{4}-\d{2}$/']]);
+
         $userId = $request->user()->id;
 
         $month = $request->query('month');

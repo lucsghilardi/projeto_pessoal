@@ -7,33 +7,13 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip } 
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { currentMonth, formatCurrency, monthLabel, shiftMonth } from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { getFinanceSummary } from "@/services/api";
 import { ApiError } from "@/services/apiError";
 import type { FinanceSummary } from "@/types/Finance";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-}
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function monthLabel(month: string) {
-  const [year, mo] = month.split("-").map(Number);
-  return new Date(year, mo - 1, 1)
-    .toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
-    .replace(/^./, (c) => c.toUpperCase());
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [year, mo] = month.split("-").map(Number);
-  const d = new Date(year, mo - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export default function FinanceDashboardPage() {
   const [month, setMonth] = useState(currentMonth());

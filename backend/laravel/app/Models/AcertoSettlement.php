@@ -17,7 +17,7 @@ class AcertoSettlement extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'settled_at' => 'date',
+        'settled_at' => 'date:Y-m-d',
     ];
 
     public function user(): BelongsTo

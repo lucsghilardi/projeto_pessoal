@@ -15,7 +15,7 @@ class InvestmentContribution extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'contributed_at' => 'date',
+        'contributed_at' => 'date:Y-m-d',
     ];
 
     public function investment(): BelongsTo
