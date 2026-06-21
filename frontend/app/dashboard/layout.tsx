@@ -78,7 +78,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="/dashboard">
-                    Administrativo do sistema
+                    Raiz
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {segments.map((segment, index) => {

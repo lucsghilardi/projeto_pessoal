@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from "next/image";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Sprout } from "lucide-react";
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -60,12 +60,20 @@ export function LoginForm({
           <form className="p-8 lg:p-10" onSubmit={handleLogin}>
             <FieldGroup className="gap-6">
               <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--cor-first)] text-white">
+                    <Sprout className="size-4" />
+                  </span>
+                  <span className="ff-presicav-hv text-2xl tracking-wide text-[var(--cor-second)]">
+                    Raiz
+                  </span>
+                </div>
                 <div className="space-y-2">
                   <h1 className="text-2xl font-bold  tracking-tight text-zinc-950 text-center">
-                    Entrar no painel
+                    Bem-vindo de volta
                   </h1>
                   <p className="text-sm leading-6 text-zinc-600 text-center">
-                    Use apenas e-mail e senha cadastrados pela administracao.
+                    Entre com seu e-mail e senha para acessar seu painel.
                   </p>
                 </div>
               </div>
@@ -75,7 +83,7 @@ export function LoginForm({
                   id="email"
                   type="email"
                   autoComplete="username"
-                  placeholder="admin@nitrogymacademia.com.br"
+                  placeholder="voce@exemplo.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required

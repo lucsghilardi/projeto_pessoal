@@ -115,45 +115,48 @@
 
 :root {
   --radius: 0.625rem;
-  --cor-first: #92ad57;
-  --cor-second: #445a31;
-  --cor-third: #1a2210;
+  /* Marca "Raiz" — verde-floresta */
+  --cor-first: #1f7a4d;
+  --cor-second: #103024;
+  --cor-third: #0c1a13;
   --cor-fourth: #aab9e4;
-  --cor-sixth: #ececec;
-  --cor-bg: #ececec;
+  --cor-sixth: #f6faf7;
+  --cor-bg: #f6faf7;
   --cor-primary: var(--cor-first);
   --cor-secondary: var(--cor-second);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Conteúdo — claro levemente esverdeado */
+  --background: oklch(0.985 0.006 150);
+  --foreground: oklch(0.21 0.02 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.21 0.02 155);
+  --primary: oklch(0.48 0.1 153);
+  --primary-foreground: oklch(0.985 0.012 150);
+  --secondary: oklch(0.95 0.012 150);
+  --secondary-foreground: oklch(0.3 0.04 155);
+  --muted: oklch(0.96 0.008 150);
+  --muted-foreground: oklch(0.5 0.02 155);
+  --accent: oklch(0.94 0.022 150);
+  --accent-foreground: oklch(0.3 0.05 155);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0.012 150);
+  --input: oklch(0.9 0.012 150);
+  --ring: oklch(0.48 0.1 153);
+  --chart-1: oklch(0.55 0.12 153);
+  --chart-2: oklch(0.65 0.1 185);
+  --chart-3: oklch(0.75 0.16 130);
+  --chart-4: oklch(0.78 0.15 75);
+  --chart-5: oklch(0.45 0.05 175);
+  /* Sidebar — verde-escuro (âncora do layout) */
+  --sidebar: oklch(0.23 0.03 158);
+  --sidebar-foreground: oklch(0.92 0.015 150);
+  --sidebar-primary: oklch(0.62 0.13 152);
+  --sidebar-primary-foreground: oklch(0.2 0.02 155);
+  --sidebar-accent: oklch(0.31 0.04 158);
+  --sidebar-accent-foreground: oklch(0.97 0.01 150);
+  --sidebar-border: oklch(0.34 0.03 158);
+  --sidebar-ring: oklch(0.62 0.13 152);
 }
 
 .dark {
@@ -455,10 +458,10 @@ footer select:-webkit-autofill:focus {
   opacity: var(--navbar-after-opacity);
   transition: opacity 0.25s ease;
   background: #1A2210;
-  background: -webkit-linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#92ad57 35%);
-  background: -moz-linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#92ad57 35%);
-  background: linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#92ad57 35%);
-  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#1A2210",endColorstr="#92AD57",GradientType=0);
+  background: -webkit-linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#1f7a4d 35%);
+  background: -moz-linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#1f7a4d 35%);
+  background: linear-gradient(302deg,rgb(26 34 16 / .32) 0%,#1f7a4d 35%);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#1A2210",endColorstr="#1F7A4D",GradientType=0);
   pointer-events: none;
 }
 
@@ -661,7 +664,7 @@ footer select:-webkit-autofill:focus {
 
 .hero-section .swiper-pagination-bullet-active {
   background: var(--cor-first);
-  box-shadow: 0 0 18px rgb(146 173 87 / 0.45);
+  box-shadow: 0 0 18px rgb(31 122 77 / 0.45);
 }
 
 @media (max-width: 991px) {
@@ -1115,7 +1118,7 @@ footer select:-webkit-autofill:focus {
   z-index: 140;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgb(146 173 87 / 0.18), transparent 36%),
+    radial-gradient(circle at top, rgb(31 122 77 / 0.18), transparent 36%),
     linear-gradient(145deg, rgb(5 5 5 / 0.98), rgb(15 19 12 / 0.98));
 }
 
@@ -1131,8 +1134,8 @@ footer select:-webkit-autofill:focus {
   width: min(320px, 48vw);
   height: 4px;
   border-radius: 9999px;
-  background: linear-gradient(90deg, var(--cor-first), #d7f0a6);
-  box-shadow: 0 0 28px rgb(146 173 87 / 0.35);
+  background: linear-gradient(90deg, var(--cor-first), #5fbf8a);
+  box-shadow: 0 0 28px rgb(31 122 77 / 0.35);
 }
 
 .public-page-transition__label {
@@ -1277,7 +1280,7 @@ footer select:-webkit-autofill:focus {
   right: -2rem;
   width: 34rem;
   height: 34rem;
-  background: radial-gradient(circle at center, rgb(146 173 87 / 0.36), rgb(146 173 87 / 0) 72%);
+  background: radial-gradient(circle at center, rgb(31 122 77 / 0.36), rgb(31 122 77 / 0) 72%);
   animation: aboutOrbFloat 12s ease-in-out infinite;
 }
 
@@ -1430,7 +1433,7 @@ footer select:-webkit-autofill:focus {
 
 .about-button--primary {
   background: var(--cor-first);
-  box-shadow: 0 18px 50px rgb(146 173 87 / 0.3);
+  box-shadow: 0 18px 50px rgb(31 122 77 / 0.3);
   color: var(--cor-third);
 }
 
@@ -1459,7 +1462,7 @@ footer select:-webkit-autofill:focus {
 
 .about-button--ghost-dark:hover,
 .about-button--outline-dark:hover {
-  border-color: rgb(146 173 87 / 0.45);
+  border-color: rgb(31 122 77 / 0.45);
   color: var(--cor-second);
 }
 
@@ -1662,7 +1665,7 @@ footer select:-webkit-autofill:focus {
   height: 0.4rem;
   border-radius: 9999px;
   background: var(--cor-first);
-  box-shadow: 0 0 18px rgb(146 173 87 / 0.5);
+  box-shadow: 0 0 18px rgb(31 122 77 / 0.5);
 }
 
 .about-section {
@@ -1844,7 +1847,7 @@ footer select:-webkit-autofill:focus {
   width: 20rem;
   height: 20rem;
   border-radius: 9999px;
-  background: radial-gradient(circle at center, rgb(146 173 87 / 0.18), rgb(146 173 87 / 0) 72%);
+  background: radial-gradient(circle at center, rgb(31 122 77 / 0.18), rgb(31 122 77 / 0) 72%);
   pointer-events: none;
 }
 
@@ -1948,7 +1951,7 @@ footer select:-webkit-autofill:focus {
   border-radius: 2.6rem;
   padding: clamp(1.8rem, 4vw, 3rem);
   background:
-    radial-gradient(circle at top right, rgb(146 173 87 / 0.22), transparent 28%),
+    radial-gradient(circle at top right, rgb(31 122 77 / 0.22), transparent 28%),
     radial-gradient(circle at bottom left, rgb(255 255 255 / 0.12), transparent 24%),
     linear-gradient(180deg, #11180b 0%, #1a2210 58%, #11180b 100%);
   box-shadow: 0 28px 100px rgb(15 23 42 / 0.18);
@@ -2339,5 +2342,41 @@ footer select:-webkit-autofill:focus {
   .bannerPlanos::before,
   .bannerPlanos::after {
     animation: none;
+  }
+}
+
+/* Impressão / "Salvar como PDF" dos relatórios: oculta a navegação e os
+   controles, deixando só o conteúdo do relatório com as cores preservadas. */
+@media print {
+  [data-slot="sidebar"],
+  [data-slot="sidebar-trigger"],
+  header.sticky,
+  .no-print {
+    display: none !important;
+  }
+
+  [data-slot="sidebar-inset"] {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .rounded-xl,
+  .rounded-2xl,
+  table,
+  li {
+    break-inside: avoid;
   }
 }

@@ -5,6 +5,28 @@ import { InvestmentTag, InvestmentTagPayload } from '@/types/InvestmentTag';
 import { InvestmentInstitution, InvestmentInstitutionPayload } from '@/types/InvestmentInstitution';
 import { Asset, AssetPayload, AssetsResponse } from '@/types/Asset';
 import {
+    CreateColumnPayload,
+    CreateProjectPayload,
+    CreateTaskPayload,
+    MoveTaskPayload,
+    Project,
+    ProjectBoard,
+    Task,
+    TaskColumn,
+    TasksOverview,
+    UpdateColumnPayload,
+    UpdateProjectPayload,
+    UpdateTaskPayload,
+} from '@/types/Task';
+import { GamificationSummary, MoveTaskResult } from '@/types/Gamification';
+import {
+    ActiveTimer,
+    CreateTimeEntryPayload,
+    TimeEntry,
+    TimeReport,
+    UpdateTimeEntryPayload,
+} from '@/types/Time';
+import {
     AiReceiptBatchPayload,
     AiReceiptBatchResult,
     AiReceiptCheckDuplicatesPayload,
@@ -539,6 +561,142 @@ export function confirmAiReceipt(data: AiReceiptConfirmPayload) {
         method: 'POST',
         body: JSON.stringify(data),
     });
+}
+
+// ===== Tarefas (projetos + kanban + gamificação) =====
+
+export function getTasksOverview() {
+    return apiFetch<TasksOverview>('/tasks-overview');
+}
+
+export function getGamification() {
+    return apiFetch<GamificationSummary>('/gamification');
+}
+
+export function getProjects() {
+    return apiFetch<Project[]>('/projects');
+}
+
+export function getProjectBoard(id: number) {
+    return apiFetch<ProjectBoard>(`/projects/${id}`);
+}
+
+export function createProject(data: CreateProjectPayload) {
+    return apiFetch<ProjectBoard>('/projects', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateProject(id: number, data: UpdateProjectPayload) {
+    return apiFetch<Project>(`/projects/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteProject(id: number) {
+    return apiFetch<{ message: string }>(`/projects/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export function createColumn(projectId: number, data: CreateColumnPayload) {
+    return apiFetch<TaskColumn>(`/projects/${projectId}/columns`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateColumn(columnId: number, data: UpdateColumnPayload) {
+    return apiFetch<TaskColumn>(`/columns/${columnId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteColumn(columnId: number) {
+    return apiFetch<{ message: string }>(`/columns/${columnId}`, {
+        method: 'DELETE',
+    });
+}
+
+export function reorderColumns(columnIds: number[]) {
+    return apiFetch<{ message: string }>('/columns/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ columns: columnIds }),
+    });
+}
+
+export function createTask(data: CreateTaskPayload) {
+    return apiFetch<Task>('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateTask(id: number, data: UpdateTaskPayload) {
+    return apiFetch<Task>(`/tasks/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteTask(id: number) {
+    return apiFetch<{ message: string }>(`/tasks/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export function moveTask(id: number, data: MoveTaskPayload) {
+    return apiFetch<MoveTaskResult>(`/tasks/${id}/move`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+// ===== Tempo / Relatórios =====
+
+export function getActiveTimer() {
+    return apiFetch<ActiveTimer>('/time-entries/active');
+}
+
+export function startTimer(taskId: number) {
+    return apiFetch<TimeEntry>('/time-entries/start', {
+        method: 'POST',
+        body: JSON.stringify({ task_id: taskId }),
+    });
+}
+
+export function stopTimer(entryId: number) {
+    return apiFetch<TimeEntry>(`/time-entries/${entryId}/stop`, { method: 'POST' });
+}
+
+export function getTaskTimeEntries(taskId: number) {
+    return apiFetch<TimeEntry[]>(`/time-entries?task_id=${taskId}`);
+}
+
+export function createTimeEntry(data: CreateTimeEntryPayload) {
+    return apiFetch<TimeEntry>('/time-entries', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateTimeEntry(id: number, data: UpdateTimeEntryPayload) {
+    return apiFetch<TimeEntry>(`/time-entries/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteTimeEntry(id: number) {
+    return apiFetch<{ message: string }>(`/time-entries/${id}`, { method: 'DELETE' });
+}
+
+export function getTimeReport(month?: string) {
+    const query = month ? `?month=${month}` : '';
+    return apiFetch<TimeReport>(`/time-reports${query}`);
 }
 
 export function confirmAiReceiptBatch(data: AiReceiptBatchPayload) {

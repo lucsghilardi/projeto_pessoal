@@ -426,7 +426,7 @@ export default function UsersPage() {
                           email: event.target.value,
                         }))
                       }
-                      placeholder="usuario@teste.nitrogymacademia.com.br"
+                      placeholder="usuario@exemplo.com"
                       disabled={creating}
                       required
                     />

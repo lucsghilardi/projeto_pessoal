@@ -1,5 +1,8 @@
 export const breadcrumbMap: Record<string, string> = {
   dashboard: "Dashboard",
+  tarefas: "Tarefas",
+  conquistas: "Conquistas",
+  relatorios: "Relatórios",
   investments: "Investimentos",
   assets: "Patrimônios",
   purposes: "Propósitos",

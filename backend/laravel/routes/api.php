@@ -17,6 +17,13 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
+use App\Http\Controllers\Api\Tasks\BoardController;
+use App\Http\Controllers\Api\Tasks\GamificationController;
+use App\Http\Controllers\Api\Tasks\ProjectController;
+use App\Http\Controllers\Api\Tasks\TaskColumnController;
+use App\Http\Controllers\Api\Tasks\TaskController;
+use App\Http\Controllers\Api\Tasks\TimeEntryController;
+use App\Http\Controllers\Api\Tasks\TimeReportController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +48,25 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
 
     // Patrimônios (escopado pelo usuario autenticado)
     Route::apiResource('assets', AssetController::class)->except(['show']);
+
+    // Tarefas: projetos + kanban (colunas) + gamificação (escopado pelo usuario)
+    Route::get('/tasks-overview', [BoardController::class, 'overview']);
+    Route::get('/gamification', [GamificationController::class, 'show']);
+    Route::post('/columns/reorder', [TaskColumnController::class, 'reorder']);
+    Route::post('/tasks/{task}/move', [TaskController::class, 'move']);
+    Route::apiResource('projects', ProjectController::class)->except(['create', 'edit']);
+    Route::apiResource('projects.columns', TaskColumnController::class)
+        ->shallow()
+        ->parameters(['columns' => 'taskColumn'])
+        ->only(['store', 'update', 'destroy']);
+    Route::apiResource('tasks', TaskController::class)->except(['show', 'create', 'edit']);
+
+    // Controle de tempo + relatórios (escopado pelo usuario)
+    Route::get('/time-entries/active', [TimeEntryController::class, 'active']);
+    Route::post('/time-entries/start', [TimeEntryController::class, 'start']);
+    Route::post('/time-entries/{timeEntry}/stop', [TimeEntryController::class, 'stop']);
+    Route::apiResource('time-entries', TimeEntryController::class)->except(['show', 'create', 'edit']);
+    Route::get('/time-reports', [TimeReportController::class, 'index']);
 
     // Financeiro (escopado pelo usuario autenticado)
     Route::prefix('finance')->group(function () {

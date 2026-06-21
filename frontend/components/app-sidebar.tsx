@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import {
-  Dumbbell,
+  Sprout,
 } from "lucide-react"
 
-import { getDashboardNavSectionsForRole } from "@/lib/dashboard-access"
+import { getDashboardNavForRole } from "@/lib/dashboard-access"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 
 import { useAuth } from "@/context/AuthContext"
@@ -23,30 +24,30 @@ import { useAuth } from "@/context/AuthContext"
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth()
 
-  const navSections = React.useMemo(() => {
+  const navEntries = React.useMemo(() => {
     if (!user) {
       return []
     }
 
-    return getDashboardNavSectionsForRole(user.role)
+    return getDashboardNavForRole(user.role)
   }, [user])
 
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href="/dashboard">
-                <div className="bg-[var(--cor-first)] text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Dumbbell className="size-4" />
+                <div className="bg-[var(--cor-first)] flex aspect-square size-8 items-center justify-center rounded-lg text-white">
+                  <Sprout className="size-4" />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">
-                    Painel
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="ff-presicav-hv truncate text-lg tracking-wide">
+                    Raiz
                   </span>
-                  <span className="truncate text-xs">
-                    {user ? `Painel ${user.role}` : "Painel administrativo"}
+                  <span className="truncate text-xs text-sidebar-foreground/70">
+                    Painel pessoal
                   </span>
                 </div>
               </a>
@@ -56,7 +57,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <NavMain sections={navSections} />
+        <NavMain entries={navEntries} />
       </SidebarContent>
 
       <SidebarFooter>
@@ -66,6 +67,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           role: user?.role ?? null,
         }} />
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   )
 }

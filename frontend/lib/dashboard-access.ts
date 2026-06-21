@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, CreditCard, Gem, Handshake, Landmark, LayoutDashboard, ScanLine, Tags, Target, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, CircleDollarSign, CreditCard, Gem, Handshake, KanbanSquare, Landmark, LayoutDashboard, ScanLine, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -9,19 +9,27 @@ type DashboardRouteRule = {
   exact?: boolean;
 };
 
-export type DashboardNavSection = {
-  label: string;
-  items: Array<{
-    title: string;
-    url: string;
-    roles: UserRole[];
-    icon: LucideIcon;
-  }>;
+export type DashboardNavLink = {
+  title: string;
+  url: string;
+  roles: UserRole[];
+  icon: LucideIcon;
 };
+
+export type DashboardNavGroup = {
+  label: string;
+  icon: LucideIcon;
+  items: DashboardNavLink[];
+};
+
+export type DashboardNavEntry =
+  | ({ kind: "link" } & DashboardNavLink)
+  | ({ kind: "group" } & DashboardNavGroup);
 
 const ALL_ROLES: UserRole[] = ["admin", "editor", "viewer"];
 
 const dashboardRouteRules: DashboardRouteRule[] = [
+  { path: "/dashboard/tarefas", roles: ALL_ROLES },
   { path: "/dashboard/investments", roles: ALL_ROLES },
   { path: "/dashboard/assets", roles: ALL_ROLES },
   { path: "/dashboard/finance/credit-cards", roles: ALL_ROLES },
@@ -32,23 +40,21 @@ const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
 ];
 
-export const dashboardNavSections: DashboardNavSection[] = [
+export const dashboardNav: DashboardNavEntry[] = [
   {
-    label: "Investimentos",
+    kind: "group",
+    label: "Tarefas",
+    icon: KanbanSquare,
     items: [
-      { title: "Carteira", url: "/dashboard/investments", roles: ALL_ROLES, icon: Wallet },
-      { title: "Propósitos", url: "/dashboard/investments/purposes", roles: ALL_ROLES, icon: Target },
-      { title: "Instituições", url: "/dashboard/investments/institutions", roles: ALL_ROLES, icon: Landmark },
+      { title: "Visão geral", url: "/dashboard/tarefas", roles: ALL_ROLES, icon: KanbanSquare },
+      { title: "Relatórios", url: "/dashboard/tarefas/relatorios", roles: ALL_ROLES, icon: BarChart3 },
+      { title: "Conquistas", url: "/dashboard/tarefas/conquistas", roles: ALL_ROLES, icon: Trophy },
     ],
   },
   {
-    label: "Patrimônio",
-    items: [
-      { title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },
-    ],
-  },
-  {
+    kind: "group",
     label: "Financeiro",
+    icon: CircleDollarSign,
     items: [
       { title: "Painel", url: "/dashboard/finance", roles: ALL_ROLES, icon: LayoutDashboard },
       { title: "Relatórios", url: "/dashboard/finance/reports", roles: ALL_ROLES, icon: BarChart3 },
@@ -62,17 +68,18 @@ export const dashboardNavSections: DashboardNavSection[] = [
     ],
   },
   {
-    label: "Cartões",
+    kind: "group",
+    label: "Investimentos",
+    icon: TrendingUp,
     items: [
-      { title: "Cartões de crédito", url: "/dashboard/finance/credit-cards", roles: ALL_ROLES, icon: CreditCard },
+      { title: "Carteira", url: "/dashboard/investments", roles: ALL_ROLES, icon: Wallet },
+      { title: "Propósitos", url: "/dashboard/investments/purposes", roles: ALL_ROLES, icon: Target },
+      { title: "Instituições", url: "/dashboard/investments/institutions", roles: ALL_ROLES, icon: Landmark },
     ],
   },
-  {
-    label: "Configurações",
-    items: [
-      { title: "Usuários", url: "/dashboard/users", roles: ["admin"], icon: Users },
-    ],
-  },
+  { kind: "link", title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },
+  { kind: "link", title: "Cartões de crédito", url: "/dashboard/finance/credit-cards", roles: ALL_ROLES, icon: CreditCard },
+  { kind: "link", title: "Usuários", url: "/dashboard/users", roles: ["admin"], icon: Users },
 ];
 
 export function canAccessDashboardRoute(role: UserRole, pathname: string) {
@@ -91,13 +98,15 @@ export function canAccessDashboardRoute(role: UserRole, pathname: string) {
   return matchedRule.roles.includes(role);
 }
 
-export function getDashboardNavSectionsForRole(role: UserRole) {
-  return dashboardNavSections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => item.roles.includes(role)),
-    }))
-    .filter((section) => section.items.length > 0);
+export function getDashboardNavForRole(role: UserRole): DashboardNavEntry[] {
+  return dashboardNav.flatMap((entry): DashboardNavEntry[] => {
+    if (entry.kind === "link") {
+      return entry.roles.includes(role) ? [entry] : [];
+    }
+
+    const items = entry.items.filter((item) => item.roles.includes(role));
+    return items.length > 0 ? [{ ...entry, items }] : [];
+  });
 }
 
 export function isDashboardItemActive(pathname: string, url: string) {
@@ -106,7 +115,12 @@ export function isDashboardItemActive(pathname: string, url: string) {
   }
 
   // "Carteira" (/dashboard/investments) não deve ficar ativa em /investments/purposes.
-  if (url === "/dashboard/investments" || url === "/dashboard/finance") {
+  // "Visão geral" das tarefas idem: não destaca nos boards de projeto (/tarefas/{id}).
+  if (
+    url === "/dashboard/investments" ||
+    url === "/dashboard/finance" ||
+    url === "/dashboard/tarefas"
+  ) {
     return pathname === url;
   }
 
@@ -114,6 +128,11 @@ export function isDashboardItemActive(pathname: string, url: string) {
 }
 
 export function getDashboardFallbackRoute(role: UserRole) {
-  const firstSection = getDashboardNavSectionsForRole(role)[0];
-  return firstSection?.items[0]?.url ?? "/dashboard";
+  const first = getDashboardNavForRole(role)[0];
+
+  if (!first) {
+    return "/dashboard";
+  }
+
+  return first.kind === "link" ? first.url : (first.items[0]?.url ?? "/dashboard");
 }

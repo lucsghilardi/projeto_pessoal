@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Painel administrativo",
-  description: "Painel administrativo — módulo de usuários.",
+  title: "Raiz",
+  description: "Raiz — seu painel pessoal de produtividade e finanças.",
 };
 
 export default function RootLayout({

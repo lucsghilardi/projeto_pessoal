@@ -20,6 +20,31 @@ export function toNumber(value: string | number) {
   return typeof value === "number" ? value : Number.parseFloat(value || "0");
 }
 
+/** Segundos -> "1h 30m" / "45m" / "2h" / "0m". */
+export function formatDuration(seconds: number) {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+/** Segundos -> "00:12:34" (relógio do cronômetro). */
+export function formatClock(seconds: number) {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = String(Math.floor(total / 3600)).padStart(2, "0");
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+  const s = String(total % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+/** Segundos -> horas decimais (para gráficos). */
+export function secondsToHours(seconds: number) {
+  return Math.round((seconds / 3600) * 100) / 100;
+}
+
 /** Data de hoje (fuso local) em "YYYY-MM-DD". */
 export function todayISO() {
   const d = new Date();
