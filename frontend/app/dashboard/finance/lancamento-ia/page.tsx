@@ -356,7 +356,9 @@ export default function AiReceiptPage() {
     }
 
     for (const row of selected) {
-      if (!row.description.trim() || !(Number.parseFloat(row.amount || "0") > 0) || !row.date) {
+      const amount = Number.parseFloat(row.amount || "0");
+      // Aceita negativo (estorno/crédito); rejeita apenas vazio, zero ou não-numérico.
+      if (!row.description.trim() || Number.isNaN(amount) || amount === 0 || !row.date) {
         setFormError("Há lançamentos selecionados com descrição, valor ou data inválidos.");
         return;
       }
@@ -772,7 +774,6 @@ export default function AiReceiptPage() {
                           <Input
                             type="number"
                             step="0.01"
-                            min="0"
                             value={row.amount}
                             onChange={(e) => updateRow(index, { amount: e.target.value })}
                             className="w-24"

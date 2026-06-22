@@ -209,7 +209,8 @@ class AiReceiptController extends Controller
             ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required', 'string', 'max:255'],
-            'items.*.amount' => ['required', 'numeric', 'gt:0'],
+            // Aceita negativos: estornos/créditos de fatura entram como amount negativo.
+            'items.*.amount' => ['required', 'numeric'],
             'items.*.date' => ['required', 'date'],
             'items.*.category_id' => [
                 'nullable', 'integer',

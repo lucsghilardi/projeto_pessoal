@@ -62,6 +62,15 @@ import {
     Receivable,
     ReceivablePayload,
 } from '@/types/Finance';
+import {
+    Consorcio,
+    ConsorcioParcelaGeneratePayload,
+    ConsorcioParcelaPayload,
+    ConsorcioParcelasResponse,
+    ConsorcioPayload,
+    ConsorcioReajusteResponse,
+    ConsorciosResponse,
+} from '@/types/Consorcio';
 
 const API_URL = '/api/proxy';
 
@@ -541,6 +550,84 @@ export function payCreditCardInvoice(invoiceId: number, data: CreditCardInvoiceP
 export function deleteCreditCardInvoicePayment(invoiceId: number, paymentId: number) {
     return apiFetch<CreditCardInvoice>(`/finance/credit-cards/invoices/${invoiceId}/payments/${paymentId}`, {
         method: 'DELETE',
+    });
+}
+
+// ===== Consórcios =====
+
+export function getConsorcios() {
+    return apiFetch<ConsorciosResponse>('/consorcios');
+}
+
+export function createConsorcio(data: ConsorcioPayload) {
+    return apiFetch<Consorcio>('/consorcios', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateConsorcio(id: number, data: ConsorcioPayload) {
+    return apiFetch<Consorcio>(`/consorcios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteConsorcio(id: number) {
+    return apiFetch<{ message: string }>(`/consorcios/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export function uploadConsorcioProposta(id: number, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return apiFetch<Consorcio>(`/consorcios/${id}/proposta`, {
+        method: 'POST',
+        body: formData,
+    });
+}
+
+export function deleteConsorcioProposta(id: number) {
+    return apiFetch<Consorcio>(`/consorcios/${id}/proposta`, {
+        method: 'DELETE',
+    });
+}
+
+/** URL para abrir/baixar a proposta (passa pelo proxy autenticado). */
+export function consorcioPropostaUrl(id: number) {
+    return `${API_URL}/consorcios/${id}/proposta`;
+}
+
+export function getConsorcioParcelas(consorcioId: number) {
+    return apiFetch<ConsorcioParcelasResponse>(`/consorcios/${consorcioId}/parcelas`);
+}
+
+export function createConsorcioParcela(consorcioId: number, data: ConsorcioParcelaPayload) {
+    return apiFetch<ConsorcioParcelasResponse>(`/consorcios/${consorcioId}/parcelas`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function generateConsorcioParcelas(
+    consorcioId: number,
+    data: ConsorcioParcelaGeneratePayload,
+) {
+    return apiFetch<ConsorcioParcelasResponse & { criadas: number }>(
+        `/consorcios/${consorcioId}/parcelas/generate`,
+        {
+            method: 'POST',
+            body: JSON.stringify(data),
+        },
+    );
+}
+
+export function aplicarReajusteConsorcio(consorcioId: number, percentual: number) {
+    return apiFetch<ConsorcioReajusteResponse>(`/consorcios/${consorcioId}/reajuste`, {
+        method: 'POST',
+        body: JSON.stringify({ percentual }),
     });
 }
 

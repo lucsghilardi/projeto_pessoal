@@ -20,6 +20,7 @@ class Payable extends Model
         'installment_number',
         'installments_total',
         'group_id',
+        'consorcio_id',
         'receipt_path',
         'import_fingerprint',
     ];
@@ -44,5 +45,10 @@ class Payable extends Model
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
+    }
+
+    public function consorcio(): BelongsTo
+    {
+        return $this->belongsTo(Consorcio::class);
     }
 }

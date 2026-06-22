@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ConsorcioController;
+use App\Http\Controllers\Api\ConsorcioParcelaController;
 use App\Http\Controllers\Api\Finance\AcertoController;
 use App\Http\Controllers\Api\Finance\AiReceiptController;
 use App\Http\Controllers\Api\Finance\BankAccountController;
@@ -48,6 +50,17 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
 
     // Patrimônios (escopado pelo usuario autenticado)
     Route::apiResource('assets', AssetController::class)->except(['show']);
+
+    // Consórcios: contrato + proposta (arquivo). As parcelas do carnê são contas a pagar
+    // vinculadas (consorcio_id); pagar/estornar/editar/excluir usa os endpoints de payables.
+    Route::post('/consorcios/{consorcio}/reajuste', [ConsorcioController::class, 'aplicarReajuste']);
+    Route::post('/consorcios/{consorcio}/proposta', [ConsorcioController::class, 'uploadProposta']);
+    Route::get('/consorcios/{consorcio}/proposta', [ConsorcioController::class, 'downloadProposta']);
+    Route::delete('/consorcios/{consorcio}/proposta', [ConsorcioController::class, 'deleteProposta']);
+    Route::get('/consorcios/{consorcio}/parcelas', [ConsorcioParcelaController::class, 'index']);
+    Route::post('/consorcios/{consorcio}/parcelas', [ConsorcioParcelaController::class, 'store']);
+    Route::post('/consorcios/{consorcio}/parcelas/generate', [ConsorcioParcelaController::class, 'generate']);
+    Route::apiResource('consorcios', ConsorcioController::class)->except(['show']);
 
     // Tarefas: projetos + kanban (colunas) + gamificação (escopado pelo usuario)
     Route::get('/tasks-overview', [BoardController::class, 'overview']);

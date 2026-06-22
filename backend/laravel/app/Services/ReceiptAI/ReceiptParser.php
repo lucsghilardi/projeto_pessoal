@@ -52,7 +52,9 @@ class ReceiptParser
                 'content-type' => 'application/json',
             ])->timeout(120)->post(self::ENDPOINT, [
                 'model' => config('services.anthropic.model'),
-                'max_tokens' => 4096,
+                // Extratos/faturas longos podem render dezenas de itens. 4096 truncava o
+                // tool_use no meio do JSON, retornando 0 lançamentos ("arquivo mais nítido").
+                'max_tokens' => 16384,
                 'tools' => [$this->extractionTool($allowedIds)],
                 'tool_choice' => ['type' => 'tool', 'name' => 'registrar_extracao'],
                 'messages' => [[
@@ -128,13 +130,13 @@ document_type:
 - "fatura": fatura de cartão de crédito com várias compras. Um item por compra. Preencha card_last_four (4 últimos dígitos) se houver.
 - "extrato": extrato de conta bancária (CSV/OFX/texto) com vários movimentos.
 
-REGRA IMPORTANTE — inclua apenas DESPESAS (saídas de dinheiro):
-- Em "fatura": apenas compras/serviços. NÃO inclua pagamento da fatura anterior, créditos, estornos nem o total.
-- Em "extrato": apenas débitos/saídas. NÃO inclua entradas/créditos (salário, transferências recebidas, rendimentos, estornos). No OFX, TRNAMT negativo é saída (despesa).
-- Sempre use amount POSITIVO (valor absoluto da despesa).
+REGRA IMPORTANTE — o que incluir e o sinal do amount:
+- Em "fatura": inclua as compras/serviços (amount POSITIVO) E TAMBÉM os estornos, devoluções e créditos de compra (amount NEGATIVO), pois eles abatem do total da fatura. NÃO inclua o pagamento da fatura anterior ("Pagamento recebido"/"Pagamento de fatura") nem a linha de total. Ex.: "IOF de compra internacional" = positivo; "IOF de volta"/"Estorno de compra" = negativo.
+- Em "extrato": apenas débitos/saídas (amount POSITIVO). NÃO inclua entradas/créditos (salário, transferências recebidas, rendimentos, estornos). No OFX, TRNAMT negativo é saída (despesa).
+- Em "comprovante": 1 item, amount POSITIVO.
 
 Em cada item:
-- amount: valor positivo, número com ponto decimal, sem símbolo de moeda. Na fatura, use o valor cobrado NESTA fatura.
+- amount: número com ponto decimal, sem símbolo de moeda. Despesa = positivo; estorno/devolução/crédito (só em fatura) = negativo. Na fatura, use o valor cobrado NESTA fatura.
 - purchase_date: data YYYY-MM-DD. Se faltar o ano, use o ano do vencimento/movimento. Se não houver data, use {$today}.
 - description: estabelecimento/descrição.
 - payment_method: "credito", "debito", "pix" ou "desconhecido". Em fatura use "credito"; em extrato use "debito".
@@ -169,7 +171,7 @@ TXT;
 
         return [
             'name' => 'registrar_extracao',
-            'description' => 'Registra os lançamentos de despesa extraídos de um comprovante, fatura ou extrato.',
+            'description' => 'Registra os lançamentos extraídos de um comprovante, fatura ou extrato. Despesas com amount positivo; estornos/créditos de fatura com amount negativo.',
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
@@ -210,7 +212,7 @@ TXT;
 
         $items = collect($payload['items'] ?? [])
             ->map(fn ($item) => $this->normalizeItem(is_array($item) ? $item : [], $allowedIds))
-            ->filter(fn ($item) => $item['amount'] !== null && $item['amount'] > 0)
+            ->filter(fn ($item) => $item['amount'] !== null && $item['amount'] != 0.0)
             ->values()
             ->all();
 
@@ -254,7 +256,7 @@ TXT;
         }
 
         return [
-            'amount' => isset($item['amount']) ? round((float) abs((float) $item['amount']), 2) : null,
+            'amount' => isset($item['amount']) ? round((float) $item['amount'], 2) : null,
             'purchase_date' => $item['purchase_date'] ?? null,
             'description' => $item['description'] ?? null,
             'payment_method' => $method,

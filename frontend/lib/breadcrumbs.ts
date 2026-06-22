@@ -18,4 +18,5 @@ export const breadcrumbMap: Record<string, string> = {
   accounts: "Contas",
   categories: "Categorias",
   "credit-cards": "Cartões de crédito",
+  consorcios: "Consórcios",
 };

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, CircleDollarSign, CreditCard, Gem, Handshake, KanbanSquare, Landmark, LayoutDashboard, ScanLine, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, Boxes, CircleDollarSign, CreditCard, Gem, Handshake, KanbanSquare, Landmark, LayoutDashboard, ScanLine, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -36,6 +36,7 @@ const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/finance/plano-1-milhao", roles: ALL_ROLES },
   { path: "/dashboard/finance/acertos", roles: ALL_ROLES },
   { path: "/dashboard/finance", roles: ALL_ROLES },
+  { path: "/dashboard/consorcios", roles: ALL_ROLES },
   { path: "/dashboard/users", roles: ["admin"] },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
 ];
@@ -79,6 +80,7 @@ export const dashboardNav: DashboardNavEntry[] = [
   },
   { kind: "link", title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },
   { kind: "link", title: "Cartões de crédito", url: "/dashboard/finance/credit-cards", roles: ALL_ROLES, icon: CreditCard },
+  { kind: "link", title: "Consórcios", url: "/dashboard/consorcios", roles: ALL_ROLES, icon: Boxes },
   { kind: "link", title: "Usuários", url: "/dashboard/users", roles: ["admin"], icon: Users },
 ];
 
