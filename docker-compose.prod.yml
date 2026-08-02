@@ -1,0 +1,86 @@
+name: sistemaraiz_prod
+
+# Produção. Diferenças essenciais para o docker-compose.yml (dev):
+#  - o código vai dentro das imagens (nenhum bind mount de ./backend ou ./frontend)
+#  - nada de `artisan serve` nem `npm run dev` — nginx + php-fpm e Next standalone
+#  - nenhuma porta publicada, exceto o frontend em 127.0.0.1:3001, que só o
+#    Nginx do host alcança. Postgres e Laravel ficam na rede interna.
+#    (a 3000 já é do beef_prod_frontend, no mesmo servidor)
+#  - storage/ do Laravel em volume nomeado: é onde vivem os comprovantes e as
+#    propostas de consórcio enviados pelos usuários.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sistemaraiz_prod_postgres
+    env_file:
+      - ./backend/laravel/.env
+    volumes:
+      - sistemaraiz_prod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  php:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      target: app
+    image: sistemaraiz/backend:latest
+    container_name: sistemaraiz_prod_php
+    working_dir: /var/www/laravel
+    volumes:
+      - ./backend/laravel/.env:/var/www/laravel/.env:ro
+      - sistemaraiz_prod_storage:/var/www/laravel/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      target: web
+    image: sistemaraiz/backend-web:latest
+    container_name: sistemaraiz_prod_backend
+    depends_on:
+      - php
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://sistemaraiz.movidoaweb.com.br/api
+    image: sistemaraiz/frontend:latest
+    container_name: sistemaraiz_prod_frontend
+    environment:
+      # O cookie de sessão só ganha a flag Secure quando NODE_ENV=production
+      # (ver frontend/app/api/auth/login/route.ts).
+      NODE_ENV: production
+      # Resolvido pela rede interna do compose, na porta 80 do nginx do
+      # container `backend`; é este que os route handlers do Next usam
+      # (ver frontend/lib/auth.ts).
+      INTERNAL_API_URL: http://backend/api
+      NEXT_PUBLIC_API_URL: https://sistemaraiz.movidoaweb.com.br/api
+    ports:
+      # Só no loopback — quem expõe à internet é o Nginx do host, com TLS.
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  sistemaraiz_prod_pgdata:
+    name: sistemaraiz_prod_pgdata
+  # Contém storage/app/private/receipts (comprovantes) e
+  # storage/app/private/consorcios (propostas em PDF). Perder este volume
+  # significa perder todos os anexos, com os registros do banco apontando para
+  # arquivos inexistentes.
+  sistemaraiz_prod_storage:
+    name: sistemaraiz_prod_storage

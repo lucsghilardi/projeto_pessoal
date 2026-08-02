@@ -7,6 +7,11 @@
 /backend/laravel/storage/*.key
 /backend/laravel/public/storage
 
+# Uploads de usuário (comprovantes, propostas de consórcio). Vão por tar/scp
+# para o volume nomeado de produção, não pelo git — ver README, seção Deploy.
+/backend/laravel/storage/app/private/
+/backend/laravel/storage/app/public/
+
 # Frontend (Next.js)
 /frontend/.env
 /frontend/node_modules/

@@ -86,6 +86,11 @@ export interface MoveTaskPayload {
   position: number;
 }
 
+export interface BulkDeleteTasksResult {
+  message: string;
+  deleted: number;
+}
+
 export interface TasksOverview {
   projects: number;
   total_tasks: number;

@@ -65,7 +65,9 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
     // Tarefas: projetos + kanban (colunas) + gamificação (escopado pelo usuario)
     Route::get('/tasks-overview', [BoardController::class, 'overview']);
     Route::get('/gamification', [GamificationController::class, 'show']);
+    Route::get('/columns', [TaskColumnController::class, 'index']);
     Route::post('/columns/reorder', [TaskColumnController::class, 'reorder']);
+    Route::post('/tasks/bulk-delete', [TaskController::class, 'bulkDestroy']);
     Route::post('/tasks/{task}/move', [TaskController::class, 'move']);
     Route::apiResource('projects', ProjectController::class)->except(['create', 'edit']);
     Route::apiResource('projects.columns', TaskColumnController::class)

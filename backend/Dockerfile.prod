@@ -1,0 +1,66 @@
+# Imagem de produção do Laravel. Diferente do backend/Dockerfile (dev, php-cli
+# + `artisan serve`), aqui o código vai DENTRO da imagem e quem serve HTTP é o
+# nginx do estágio `web`, falando com o php-fpm do estágio `app`.
+#
+# Dois alvos, construídos pelo docker-compose.prod.yml:
+#   target: app  -> php-fpm (usado pelo serviço php)
+#   target: web  -> nginx servindo public/ e repassando .php para o php-fpm
+
+# ---------- app (php-fpm) ----------
+FROM php:8.3-fpm AS app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git \
+      unzip \
+      libzip-dev \
+      libpq-dev \
+    && docker-php-ext-install -j"$(nproc)" zip pdo pdo_pgsql opcache \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+COPY php/uploads.ini /usr/local/etc/php/conf.d/99-uploads.ini
+COPY php/opcache.ini /usr/local/etc/php/conf.d/99-opcache.ini
+
+WORKDIR /var/www/laravel
+
+# Copiar só composer.json/lock antes do código preserva o cache desta camada:
+# mudar um controller não refaz o composer install.
+COPY laravel/composer.json laravel/composer.lock ./
+RUN composer install \
+      --no-dev \
+      --no-scripts \
+      --no-autoloader \
+      --prefer-dist \
+      --no-interaction
+
+COPY laravel/ ./
+
+# Autoload otimizado agora que o código está presente. Os diretórios de storage
+# são criados aqui para que o volume nomeado nasça com a estrutura correta —
+# app/private guarda os comprovantes (receipts/) e as propostas de consórcio
+# (consorcios/), servidos por Storage::disk('local')->response().
+RUN composer dump-autoload --no-dev --optimize --classmap-authoritative \
+ && mkdir -p storage/app/private/receipts storage/app/private/consorcios storage/app/public \
+             storage/framework/cache storage/framework/sessions storage/framework/views \
+             storage/logs bootstrap/cache \
+ && chown -R www-data:www-data storage bootstrap/cache
+
+# Nada de config:cache aqui: em tempo de build o .env não existe, e o cache
+# gravaria valores errados. Os caches são gerados pelo deploy.sh, com o .env
+# já no lugar.
+
+USER www-data
+EXPOSE 9000
+CMD ["php-fpm"]
+
+# ---------- web (nginx) ----------
+FROM nginx:alpine AS web
+
+COPY nginx/laravel.conf /etc/nginx/conf.d/default.conf
+# Só o public/ precisa ficar visível ao nginx; o resto do código é lido pelo
+# php-fpm, que tem a sua própria cópia.
+COPY --from=app /var/www/laravel/public /var/www/laravel/public
+
+EXPOSE 80

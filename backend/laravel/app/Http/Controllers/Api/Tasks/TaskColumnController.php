@@ -10,6 +10,18 @@ use Illuminate\Http\Request;
 
 class TaskColumnController extends Controller
 {
+    /** Todas as colunas do usuário, para montar o mapa projeto -> colunas no relatório. */
+    public function index(Request $request): JsonResponse
+    {
+        $columns = TaskColumn::query()
+            ->where('user_id', $request->user()->id)
+            ->orderBy('project_id')
+            ->orderBy('position')
+            ->get(['id', 'project_id', 'name', 'position', 'is_done_column', 'color']);
+
+        return response()->json($columns);
+    }
+
     public function store(Request $request, Project $project): JsonResponse
     {
         $this->authorizeProjectOwnership($request, $project);

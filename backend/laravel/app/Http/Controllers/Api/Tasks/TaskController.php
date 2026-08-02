@@ -115,6 +115,25 @@ class TaskController extends Controller
         return response()->json(['message' => 'Tarefa removida com sucesso.']);
     }
 
+    /** Deleção em massa, escopada pelo usuário: ids alheios são ignorados. Não estorna XP. */
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $deleted = DB::transaction(fn () => Task::query()
+            ->where('user_id', $request->user()->id)
+            ->whereIn('id', $data['ids'])
+            ->delete());
+
+        return response()->json([
+            'message' => "{$deleted} tarefa(s) removida(s) com sucesso.",
+            'deleted' => $deleted,
+        ]);
+    }
+
     /**
      * Persiste o arrastar-soltar: troca de coluna e/ou posição, e dispara ou
      * estorna a gamificação conforme a coluna de destino seja "concluído".

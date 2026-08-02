@@ -5,6 +5,7 @@ import { InvestmentTag, InvestmentTagPayload } from '@/types/InvestmentTag';
 import { InvestmentInstitution, InvestmentInstitutionPayload } from '@/types/InvestmentInstitution';
 import { Asset, AssetPayload, AssetsResponse } from '@/types/Asset';
 import {
+    BulkDeleteTasksResult,
     CreateColumnPayload,
     CreateProjectPayload,
     CreateTaskPayload,
@@ -128,6 +129,12 @@ export async function apiFetch<T>(
 
     if (!isFormData && !headers.has('Content-Type')) {
         headers.set('Content-Type', 'application/json');
+    }
+
+    // Sem Accept explícito o Laravel responde erros de validação com redirect
+    // HTML em vez de JSON 422 (o proxy repassa o Accept ao backend).
+    if (!headers.has('Accept')) {
+        headers.set('Accept', 'application/json');
     }
 
     const res = await fetch(`${API_URL}${path}`, {
@@ -712,6 +719,21 @@ export function reorderColumns(columnIds: number[]) {
     return apiFetch<{ message: string }>('/columns/reorder', {
         method: 'POST',
         body: JSON.stringify({ columns: columnIds }),
+    });
+}
+
+export function getTasks() {
+    return apiFetch<Task[]>('/tasks');
+}
+
+export function getTaskColumns() {
+    return apiFetch<TaskColumn[]>('/columns');
+}
+
+export function bulkDeleteTasks(ids: number[]) {
+    return apiFetch<BulkDeleteTasksResult>('/tasks/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
     });
 }
 
