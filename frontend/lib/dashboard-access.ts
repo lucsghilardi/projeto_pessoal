@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, Boxes, CircleDollarSign, CreditCard, Gem, Handshake, KanbanSquare, Landmark, LayoutDashboard, ScanLine, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, Boxes, CircleDollarSign, CreditCard, Gem, Handshake, KanbanSquare, Landmark, LayoutDashboard, Lightbulb, MessageCircle, MessagesSquare, ScanLine, ScrollText, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -37,6 +37,7 @@ const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/finance/acertos", roles: ALL_ROLES },
   { path: "/dashboard/finance", roles: ALL_ROLES },
   { path: "/dashboard/consorcios", roles: ALL_ROLES },
+  { path: "/dashboard/whatsapp", roles: ["admin"] },
   { path: "/dashboard/users", roles: ["admin"] },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
 ];
@@ -76,6 +77,17 @@ export const dashboardNav: DashboardNavEntry[] = [
       { title: "Carteira", url: "/dashboard/investments", roles: ALL_ROLES, icon: Wallet },
       { title: "Propósitos", url: "/dashboard/investments/purposes", roles: ALL_ROLES, icon: Target },
       { title: "Instituições", url: "/dashboard/investments/institutions", roles: ALL_ROLES, icon: Landmark },
+    ],
+  },
+  {
+    kind: "group",
+    label: "WhatsApp",
+    icon: MessageCircle,
+    items: [
+      { title: "Visão geral", url: "/dashboard/whatsapp", roles: ["admin"], icon: MessageCircle },
+      { title: "Conversas", url: "/dashboard/whatsapp/conversas", roles: ["admin"], icon: MessagesSquare },
+      { title: "Relatórios", url: "/dashboard/whatsapp/relatorios", roles: ["admin"], icon: ScrollText },
+      { title: "Sugestões", url: "/dashboard/whatsapp/sugestoes", roles: ["admin"], icon: Lightbulb },
     ],
   },
   { kind: "link", title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },
@@ -121,7 +133,8 @@ export function isDashboardItemActive(pathname: string, url: string) {
   if (
     url === "/dashboard/investments" ||
     url === "/dashboard/finance" ||
-    url === "/dashboard/tarefas"
+    url === "/dashboard/tarefas" ||
+    url === "/dashboard/whatsapp"
   ) {
     return pathname === url;
   }

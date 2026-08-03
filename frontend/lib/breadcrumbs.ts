@@ -19,4 +19,7 @@ export const breadcrumbMap: Record<string, string> = {
   categories: "Categorias",
   "credit-cards": "Cartões de crédito",
   consorcios: "Consórcios",
+  whatsapp: "WhatsApp",
+  conversas: "Conversas",
+  sugestoes: "Sugestões",
 };

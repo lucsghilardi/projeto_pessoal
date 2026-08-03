@@ -27,10 +27,20 @@ use App\Http\Controllers\Api\Tasks\TaskController;
 use App\Http\Controllers\Api\Tasks\TimeEntryController;
 use App\Http\Controllers\Api\Tasks\TimeReportController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\Whatsapp\AnaliseController;
+use App\Http\Controllers\Api\Whatsapp\ChatController as WhatsappChatController;
+use App\Http\Controllers\Api\Whatsapp\InstanciaController as WhatsappInstanciaController;
+use App\Http\Controllers\Api\Whatsapp\RelatorioController as WhatsappRelatorioController;
+use App\Http\Controllers\Api\Whatsapp\WebhookController as WhatsappWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/health', [HealthController::class, 'index']);
+
+// Webhook da Evolution API (módulo WhatsApp). Público de propósito — a
+// Evolution não sabe autenticar em JWT; a proteção é o token na query string,
+// conferido no controller.
+Route::post('/whatsapp/webhook/evolution', [WhatsappWebhookController::class, 'evolution']);
 
 Route::middleware(['auth:api', 'panel.active'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
@@ -122,5 +132,31 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
             ->parameters(['credit-card-transactions' => 'creditCardTransaction'])->except(['show', 'index']);
         Route::apiResource('credit-cards', CreditCardController::class)
             ->parameters(['credit-cards' => 'creditCard'])->except(['show']);
+    });
+
+    // WhatsApp: monitoramento de conversas + relatórios/sugestões por IA
+    Route::prefix('whatsapp')->group(function () {
+        Route::get('/instancia', [WhatsappInstanciaController::class, 'show']);
+        Route::post('/instancia', [WhatsappInstanciaController::class, 'store']);
+        Route::put('/instancia', [WhatsappInstanciaController::class, 'update']);
+        Route::delete('/instancia', [WhatsappInstanciaController::class, 'destroy']);
+        Route::get('/instancia/qrcode', [WhatsappInstanciaController::class, 'qrcode']);
+        Route::get('/instancia/status', [WhatsappInstanciaController::class, 'status']);
+        Route::post('/instancia/webhook', [WhatsappInstanciaController::class, 'reconfigurarWebhook']);
+
+        Route::get('/chats', [WhatsappChatController::class, 'index']);
+        Route::get('/atencao', [WhatsappChatController::class, 'atencao']);
+        Route::get('/chats/{chat}/mensagens', [WhatsappChatController::class, 'mensagens']);
+        Route::post('/chats/{chat}/monitorar', [WhatsappChatController::class, 'monitorar']);
+        Route::post('/chats/{chat}/arquivar', [WhatsappChatController::class, 'arquivar']);
+        Route::post('/chats/{chat}/analisar', [AnaliseController::class, 'analisarChat']);
+
+        Route::get('/sugestoes', [AnaliseController::class, 'sugestoes']);
+        Route::post('/sugestoes/{sugestao}/aceitar', [AnaliseController::class, 'aceitar']);
+        Route::post('/sugestoes/{sugestao}/descartar', [AnaliseController::class, 'descartar']);
+
+        Route::get('/relatorios', [WhatsappRelatorioController::class, 'index']);
+        Route::post('/relatorios/gerar', [WhatsappRelatorioController::class, 'gerar']);
+        Route::get('/relatorios/{relatorio}', [WhatsappRelatorioController::class, 'show']);
     });
 });

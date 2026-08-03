@@ -72,6 +72,21 @@ import {
     ConsorcioReajusteResponse,
     ConsorciosResponse,
 } from '@/types/Consorcio';
+import {
+    WhatsappAceitarSugestaoPayload,
+    WhatsappAnaliseResultado,
+    WhatsappAtencao,
+    WhatsappChat,
+    WhatsappInstancia,
+    WhatsappInstanciaPayload,
+    WhatsappMensagem,
+    WhatsappQrcode,
+    WhatsappRelatorio,
+    WhatsappRelatorioTipo,
+    WhatsappStatusResponse,
+    WhatsappSugestao,
+    WhatsappSugestaoStatus,
+} from '@/types/Whatsapp';
 
 const API_URL = '/api/proxy';
 
@@ -819,5 +834,114 @@ export function checkAiReceiptDuplicates(data: AiReceiptCheckDuplicatesPayload) 
     return apiFetch<AiReceiptCheckDuplicatesResult>('/finance/ai-receipt/check-duplicates', {
         method: 'POST',
         body: JSON.stringify(data),
+    });
+}
+
+// ===== WhatsApp =====
+
+export function getWhatsappInstancia() {
+    return apiFetch<{ instancia: WhatsappInstancia | null }>('/whatsapp/instancia');
+}
+
+export function createWhatsappInstancia(data: { apelido?: string } = {}) {
+    return apiFetch<{ instancia: WhatsappInstancia }>('/whatsapp/instancia', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateWhatsappInstancia(data: WhatsappInstanciaPayload) {
+    return apiFetch<{ instancia: WhatsappInstancia }>('/whatsapp/instancia', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteWhatsappInstancia() {
+    return apiFetch<{ message: string }>('/whatsapp/instancia', { method: 'DELETE' });
+}
+
+export function getWhatsappQrcode() {
+    return apiFetch<WhatsappQrcode>('/whatsapp/instancia/qrcode');
+}
+
+export function getWhatsappStatus() {
+    return apiFetch<WhatsappStatusResponse>('/whatsapp/instancia/status');
+}
+
+export function reconfigurarWhatsappWebhook() {
+    return apiFetch<{ message: string }>('/whatsapp/instancia/webhook', { method: 'POST' });
+}
+
+export function getWhatsappChats(params: { busca?: string; monitorados?: boolean; arquivados?: boolean } = {}) {
+    const query = new URLSearchParams();
+    if (params.busca) query.set('busca', params.busca);
+    if (params.monitorados) query.set('monitorados', '1');
+    if (params.arquivados) query.set('arquivados', '1');
+    const qs = query.toString();
+    return apiFetch<{ chats: WhatsappChat[] }>(`/whatsapp/chats${qs ? `?${qs}` : ''}`);
+}
+
+export function getWhatsappMensagens(chatId: number, beforeMomment?: number) {
+    const qs = beforeMomment ? `?before_momment=${beforeMomment}` : '';
+    return apiFetch<{ chat: WhatsappChat; mensagens: WhatsappMensagem[] }>(
+        `/whatsapp/chats/${chatId}/mensagens${qs}`,
+    );
+}
+
+export function setWhatsappMonitorado(chatId: number, monitorado: boolean) {
+    return apiFetch<{ chat: WhatsappChat }>(`/whatsapp/chats/${chatId}/monitorar`, {
+        method: 'POST',
+        body: JSON.stringify({ monitorado }),
+    });
+}
+
+export function setWhatsappArquivado(chatId: number, arquivado: boolean) {
+    return apiFetch<{ chat: WhatsappChat }>(`/whatsapp/chats/${chatId}/arquivar`, {
+        method: 'POST',
+        body: JSON.stringify({ arquivado }),
+    });
+}
+
+export function analisarWhatsappChat(chatId: number, periodoDias: number) {
+    return apiFetch<WhatsappAnaliseResultado>(`/whatsapp/chats/${chatId}/analisar`, {
+        method: 'POST',
+        body: JSON.stringify({ periodo_dias: periodoDias }),
+    });
+}
+
+export function getWhatsappAtencao() {
+    return apiFetch<WhatsappAtencao>('/whatsapp/atencao');
+}
+
+export function getWhatsappSugestoes(status: WhatsappSugestaoStatus = 'pendente') {
+    return apiFetch<{ sugestoes: WhatsappSugestao[] }>(`/whatsapp/sugestoes?status=${status}`);
+}
+
+export function aceitarWhatsappSugestao(id: number, data: WhatsappAceitarSugestaoPayload = {}) {
+    return apiFetch<{ sugestao: WhatsappSugestao; task: Task }>(`/whatsapp/sugestoes/${id}/aceitar`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function descartarWhatsappSugestao(id: number) {
+    return apiFetch<{ sugestao: WhatsappSugestao }>(`/whatsapp/sugestoes/${id}/descartar`, {
+        method: 'POST',
+    });
+}
+
+export function getWhatsappRelatorios() {
+    return apiFetch<{ relatorios: WhatsappRelatorio[] }>('/whatsapp/relatorios');
+}
+
+export function getWhatsappRelatorio(id: number) {
+    return apiFetch<{ relatorio: WhatsappRelatorio }>(`/whatsapp/relatorios/${id}`);
+}
+
+export function gerarWhatsappRelatorio(tipo: WhatsappRelatorioTipo, enviar = true) {
+    return apiFetch<{ relatorio: WhatsappRelatorio }>('/whatsapp/relatorios/gerar', {
+        method: 'POST',
+        body: JSON.stringify({ tipo, enviar }),
     });
 }

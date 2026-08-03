@@ -62,7 +62,7 @@ $COMPOSE up -d --remove-orphans
 # container segue lendo o arquivo antigo, sem erro nenhum. Recriar o serviço a
 # cada deploy religa o mount ao arquivo atual.
 echo "==> Religando o mount do .env"
-$COMPOSE up -d --force-recreate --no-deps php
+$COMPOSE up -d --force-recreate --no-deps php queue scheduler
 
 echo "==> Aguardando o php-fpm ficar pronto"
 for _ in $(seq 1 30); do
@@ -71,6 +71,12 @@ for _ in $(seq 1 30); do
   fi
   sleep 2
 done
+
+# O banco `evolution` (Evolution API) é criado pelo init script do postgres em
+# volumes novos; em volume pré-existente ele precisa ser garantido aqui.
+echo "==> Garantindo o banco da Evolution API"
+$COMPOSE exec -T postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname = '"'"'evolution'"'"'" | grep -q 1 || createdb -U "$POSTGRES_USER" evolution'
 
 echo "==> Migrações"
 $COMPOSE exec -T php php artisan migrate --force

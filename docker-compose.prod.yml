@@ -54,6 +54,75 @@ services:
       - php
     restart: unless-stopped
 
+  # Worker de filas (módulo WhatsApp). Mesma imagem do php; o deploy.sh também
+  # força a recriação dele para religar o mount do .env e recarregar o código.
+  queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      target: app
+    image: sistemaraiz/backend:latest
+    container_name: sistemaraiz_prod_queue
+    working_dir: /var/www/laravel
+    command: php artisan queue:work --sleep=1 --tries=3 --timeout=600
+    volumes:
+      - ./backend/laravel/.env:/var/www/laravel/.env:ro
+      - sistemaraiz_prod_storage:/var/www/laravel/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Scheduler (relatório diário / resumo matinal do WhatsApp).
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+      target: app
+    image: sistemaraiz/backend:latest
+    container_name: sistemaraiz_prod_scheduler
+    working_dir: /var/www/laravel
+    command: php artisan schedule:work
+    volumes:
+      - ./backend/laravel/.env:/var/www/laravel/.env:ro
+      - sistemaraiz_prod_storage:/var/www/laravel/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Evolution API v2 — conexão com o WhatsApp (Baileys). Só na rede interna:
+  # o Laravel a acessa em http://evolution:8080 e ela entrega webhooks no
+  # nginx do container backend. Nada é exposto no host (Baileys conecta ao
+  # WhatsApp por conexão de saída). AUTHENTICATION_API_KEY e
+  # DATABASE_CONNECTION_URI vêm do .env do Laravel.
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    container_name: sistemaraiz_prod_evolution
+    env_file:
+      - ./backend/laravel/.env
+    environment:
+      SERVER_URL: http://evolution:8080
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      DEL_INSTANCE: "false"
+      LOG_LEVEL: ERROR,WARN
+    volumes:
+      - sistemaraiz_prod_evolution:/evolution/instances
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
@@ -87,3 +156,7 @@ volumes:
   # arquivos inexistentes.
   sistemaraiz_prod_storage:
     name: sistemaraiz_prod_storage
+  # Sessões/credenciais das instâncias da Evolution API. Perder este volume
+  # desconecta o WhatsApp e obriga a parear por QR code de novo.
+  sistemaraiz_prod_evolution:
+    name: sistemaraiz_prod_evolution
