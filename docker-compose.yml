@@ -13,6 +13,9 @@ services:
       - "5433:5432"
     volumes:
       - projeto_pessoal_pgdata:/var/lib/postgresql/data
+      # Cria o banco `evolution` (Evolution API) — só roda em volume recém-criado.
+      # Em volume existente: docker exec projeto_pessoal_postgres createdb -U projeto_pessoal evolution
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
@@ -44,6 +47,67 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Worker de filas (módulo WhatsApp: ingest de mídia, relatórios por IA, GTD).
+  queue:
+    build: ./backend
+    container_name: projeto_pessoal_queue
+    working_dir: /var/www/laravel
+    command: php artisan queue:work --sleep=1 --tries=3 --timeout=600
+    volumes:
+      - ./backend:/var/www
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Scheduler (relatório diário / resumo matinal do WhatsApp).
+  scheduler:
+    build: ./backend
+    container_name: projeto_pessoal_scheduler
+    working_dir: /var/www/laravel
+    command: php artisan schedule:work
+    volumes:
+      - ./backend:/var/www
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Evolution API v2 — conexão com o WhatsApp (Baileys). O Laravel fala com ela
+  # pela rede interna (http://evolution:8080) e ela entrega os webhooks direto
+  # no container backend. AUTHENTICATION_API_KEY e DATABASE_CONNECTION_URI vêm
+  # do .env do Laravel (mesmo padrão do serviço postgres).
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    container_name: projeto_pessoal_evolution
+    env_file:
+      - ./backend/laravel/.env
+    environment:
+      SERVER_URL: http://evolution:8080
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      DEL_INSTANCE: "false"
+      # O LOG_LEVEL do Laravel (debug) não é um nível válido para a Evolution.
+      LOG_LEVEL: ERROR,WARN,INFO
+    volumes:
+      - evolution_instances:/evolution/instances
+    ports:
+      # Exposta no host só para depuração (manager em http://localhost:8082/manager).
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     image: node:22-alpine
     container_name: projeto_pessoal_frontend
@@ -67,3 +131,5 @@ volumes:
     name: projeto_pessoal_pgdata
   frontend_node_modules:
     name: projeto_pessoal_frontend_node_modules
+  evolution_instances:
+    name: projeto_pessoal_evolution_instances

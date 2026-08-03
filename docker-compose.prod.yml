@@ -17,6 +17,9 @@ services:
       - ./backend/laravel/.env
     volumes:
       - sistemaraiz_prod_pgdata:/var/lib/postgresql/data
+      # Cria o banco `evolution` (Evolution API) — só roda em volume recém-criado.
+      # Em volume existente o deploy.sh garante o banco antes das migrações.
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
