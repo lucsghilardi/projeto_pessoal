@@ -38,6 +38,22 @@ jobs:
     needs: build-check
     runs-on: ubuntu-latest
     steps:
+      # Sem isto, secrets ausentes viram um `ssh @` que só imprime o usage —
+      # erro impossível de diagnosticar. Secrets precisam estar em
+      # Settings → Secrets and variables → Actions → aba "Secrets" →
+      # "Repository secrets" (não em Environments, não na aba Variables).
+      - name: Validar secrets de deploy
+        run: |
+          faltando=""
+          [ -z "${{ secrets.DEPLOY_HOST }}" ] && faltando="$faltando DEPLOY_HOST"
+          [ -z "${{ secrets.DEPLOY_USER }}" ] && faltando="$faltando DEPLOY_USER"
+          [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ] && faltando="$faltando DEPLOY_SSH_KEY"
+          [ -z "${{ secrets.DEPLOY_KNOWN_HOSTS }}" ] && faltando="$faltando DEPLOY_KNOWN_HOSTS"
+          if [ -n "$faltando" ]; then
+            echo "::error::Secrets não configurados ou fora do lugar:$faltando — crie como REPOSITORY secrets em Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
       - name: Configurar chave SSH
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh

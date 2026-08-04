@@ -82,8 +82,12 @@ export interface UpdateTaskPayload {
 }
 
 export interface MoveTaskPayload {
-  task_column_id: number;
-  position: number;
+  /** Projeto de destino; omitido = mantém o projeto atual. */
+  project_id?: number;
+  /** Omitido = o backend deriva a coluna preservando o estado de conclusão. */
+  task_column_id?: number;
+  /** Omitido = fim da coluna de destino. */
+  position?: number;
 }
 
 export interface BulkDeleteTasksResult {

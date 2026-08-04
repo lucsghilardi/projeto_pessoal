@@ -104,8 +104,9 @@ export function TaskReport() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkMoving, setBulkMoving] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -133,6 +134,13 @@ export function TaskReport() {
       mounted = false;
     };
   }, []);
+
+  // Derivado do estado, não um snapshot: mover a tarefa troca projeto e coluna,
+  // e o sheet precisa enxergar isso.
+  const editingTask = useMemo(
+    () => tasks.find((task) => task.id === editingTaskId) ?? null,
+    [tasks, editingTaskId],
+  );
 
   const columnsByProject = useMemo(() => {
     const map = new Map<number, TaskColumn[]>();
@@ -395,6 +403,61 @@ export function TaskReport() {
     }
   }
 
+  /** Reatribui a tarefa a outro projeto; o backend escolhe a coluna equivalente. */
+  async function handleProjectChange(task: Task, projectId: number) {
+    if (projectId === task.project_id) return;
+    try {
+      const result = await moveTask(task.id, { project_id: projectId });
+      patchTask(result.task);
+      appToast.success(
+        `Movida para "${result.task.project?.name}" · etapa "${result.task.column?.name}".`,
+      );
+      if (result.xp_gained < 0) {
+        appToast.error(
+          `O destino não tem coluna de conclusão — ${-result.xp_gained} XP estornado.`,
+        );
+      }
+    } catch (error) {
+      appToast.error(
+        error instanceof ApiError ? error.message : "Não foi possível mover a tarefa.",
+      );
+    }
+  }
+
+  // Sequencial de propósito: chamadas concorrentes calculariam a mesma posição
+  // de append na coluna de destino e colidiriam.
+  async function handleBulkMove(projectId: number) {
+    const ids = [...selected];
+    setBulkMoving(true);
+
+    let moved = 0;
+    const failed: string[] = [];
+
+    for (const id of ids) {
+      const task = tasks.find((item) => item.id === id);
+      if (!task || task.project_id === projectId) continue;
+      try {
+        const result = await moveTask(id, { project_id: projectId });
+        patchTask(result.task);
+        moved += 1;
+      } catch {
+        failed.push(task.title);
+      }
+    }
+
+    setBulkMoving(false);
+    setSelected(new Set());
+
+    if (moved > 0) {
+      appToast.success(`${moved} tarefa(s) movida(s).`);
+    }
+    if (failed.length > 0) {
+      appToast.error(
+        `Falha em: ${failed.slice(0, 3).join(", ")}${failed.length > 3 ? "…" : ""}`,
+      );
+    }
+  }
+
   function handleComplete(task: Task) {
     const done = columnsByProject
       .get(task.project_id)
@@ -443,7 +506,7 @@ export function TaskReport() {
   }
 
   function openTask(task: Task) {
-    setEditingTask(task);
+    setEditingTaskId(task.id);
     setSheetOpen(true);
   }
 
@@ -591,11 +654,31 @@ export function TaskReport() {
           <span className="text-sm font-medium">
             {selected.size} selecionada(s)
           </span>
+          <Select
+            value=""
+            onValueChange={(value) => void handleBulkMove(Number(value))}
+            disabled={bulkMoving || bulkDeleting}
+          >
+            <SelectTrigger size="sm" className="w-56" aria-label="Mover para projeto">
+              <SelectValue placeholder="Mover para projeto…" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={String(project.id)}>
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: project.color }}
+                  />
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="destructive"
             size="sm"
             onClick={handleBulkDelete}
-            disabled={bulkDeleting}
+            disabled={bulkDeleting || bulkMoving}
           >
             <Trash2 className="size-4" />
             Excluir selecionadas
@@ -604,7 +687,7 @@ export function TaskReport() {
             variant="ghost"
             size="sm"
             onClick={() => setSelected(new Set())}
-            disabled={bulkDeleting}
+            disabled={bulkDeleting || bulkMoving}
           >
             Limpar seleção
           </Button>
@@ -710,19 +793,46 @@ export function TaskReport() {
                                     {task.title}
                                   </span>
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="size-2.5 shrink-0 rounded-full"
-                                      style={{
-                                        backgroundColor:
-                                          task.project?.color ?? "#94a3b8",
-                                      }}
-                                    />
-                                    <span className="max-w-32 truncate text-sm text-muted-foreground">
-                                      {task.project?.name ?? "—"}
-                                    </span>
-                                  </div>
+                                <TableCell onClick={(event) => event.stopPropagation()}>
+                                  <Select
+                                    value={String(task.project_id)}
+                                    onValueChange={(value) =>
+                                      handleProjectChange(task, Number(value))
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      size="sm"
+                                      className="h-7 gap-1 border-none bg-transparent px-1.5 shadow-none"
+                                      aria-label="Projeto"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="size-2.5 shrink-0 rounded-full"
+                                          style={{
+                                            backgroundColor:
+                                              task.project?.color ?? "#94a3b8",
+                                          }}
+                                        />
+                                        <span className="max-w-32 truncate text-sm text-muted-foreground">
+                                          {task.project?.name ?? "—"}
+                                        </span>
+                                      </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {projects.map((project) => (
+                                        <SelectItem
+                                          key={project.id}
+                                          value={String(project.id)}
+                                        >
+                                          <span
+                                            className="size-2.5 shrink-0 rounded-full"
+                                            style={{ backgroundColor: project.color }}
+                                          />
+                                          {project.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </TableCell>
                                 <TableCell onClick={(event) => event.stopPropagation()}>
                                   <Select

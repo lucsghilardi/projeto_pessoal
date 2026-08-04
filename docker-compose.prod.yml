@@ -97,7 +97,7 @@ services:
   # WhatsApp por conexão de saída). AUTHENTICATION_API_KEY e
   # DATABASE_CONNECTION_URI vêm do .env do Laravel.
   evolution:
-    image: evoapicloud/evolution-api:v2.3.1
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: sistemaraiz_prod_evolution
     env_file:
       - ./backend/laravel/.env

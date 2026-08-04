@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Tasks;
 use App\Http\Controllers\Controller;
 use App\Models\Task;
 use App\Models\TaskColumn;
+use App\Models\TimeEntry;
 use App\Services\GamificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,8 +136,9 @@ class TaskController extends Controller
     }
 
     /**
-     * Persiste o arrastar-soltar: troca de coluna e/ou posição, e dispara ou
-     * estorna a gamificação conforme a coluna de destino seja "concluído".
+     * Persiste o arrastar-soltar (troca de coluna e/ou posição) e também a
+     * reatribuição da tarefa a outro projeto, quando vem `project_id`.
+     * Dispara ou estorna a gamificação conforme a coluna de destino seja "concluído".
      */
     public function move(Request $request, Task $task, GamificationService $gamification): JsonResponse
     {
@@ -144,24 +146,47 @@ class TaskController extends Controller
 
         $userId = $request->user()->id;
 
+        // Sem `project_id`, o destino é o projeto atual — mantém o contrato do kanban.
+        $targetProjectId = $request->filled('project_id')
+            ? (int) $request->input('project_id')
+            : (int) $task->project_id;
+
         $data = $request->validate([
+            'project_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('projects', 'id')->where('user_id', $userId),
+            ],
             'task_column_id' => [
-                'required',
+                'required_without:project_id',
+                'nullable',
                 'integer',
                 Rule::exists('task_columns', 'id')
                     ->where('user_id', $userId)
-                    ->where('project_id', $task->project_id),
+                    ->where('project_id', $targetProjectId),
             ],
-            'position' => ['required', 'integer', 'min:0'],
+            'position' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $destination = TaskColumn::findOrFail($data['task_column_id']);
-        $sourceColumnId = (int) $task->task_column_id;
-        $target = (int) $data['position'];
         $wasCompleted = $task->completed_at !== null;
         $previousXp = (int) $task->xp_awarded;
 
-        DB::transaction(function () use ($task, $destination, $sourceColumnId, $target) {
+        $destination = $request->filled('task_column_id')
+            ? TaskColumn::findOrFail($data['task_column_id'])
+            : $this->resolveDestinationColumn($targetProjectId, $userId, $wasCompleted);
+
+        $sourceColumnId = (int) $task->task_column_id;
+        $sourceProjectId = (int) $task->project_id;
+        // A coluna validada é a fonte da verdade do projeto de destino.
+        $destProjectId = (int) $destination->project_id;
+
+        // Sem posição explícita, entra no fim da coluna de destino.
+        $target = $data['position'] ?? (int) Task::query()
+            ->where('task_column_id', $destination->id)
+            ->where('id', '!=', $task->id)
+            ->count();
+
+        DB::transaction(function () use ($task, $destination, $sourceColumnId, $sourceProjectId, $destProjectId, $target) {
             // Abre espaço na coluna de destino e posiciona a tarefa.
             Task::query()
                 ->where('task_column_id', $destination->id)
@@ -169,9 +194,20 @@ class TaskController extends Controller
                 ->where('position', '>=', $target)
                 ->increment('position');
 
+            $task->project_id = $destProjectId;
             $task->task_column_id = $destination->id;
             $task->position = $target;
             $task->save();
+
+            // `time_entries.project_id` é cópia denormalizada de `tasks.project_id`
+            // (ver TimeEntryController): sem repropagar, os relatórios por projeto
+            // ficariam com horas num projeto e tarefas concluídas noutro.
+            if ($sourceProjectId !== $destProjectId) {
+                TimeEntry::query()
+                    ->where('user_id', $task->user_id)
+                    ->where('task_id', $task->id)
+                    ->update(['project_id' => $destProjectId]);
+            }
 
             $this->resequence($destination->id);
 
@@ -195,6 +231,28 @@ class TaskController extends Controller
             'xp_gained' => $xpGained,
             'gamification' => $gamification->summary($userId),
         ]);
+    }
+
+    /**
+     * Escolhe a coluna de destino ao reatribuir a tarefa a outro projeto.
+     * Preserva o estado de conclusão para que trocar de projeto, por si só,
+     * nunca conceda nem estorne XP — `$wantsDone` é a mesma variável que
+     * dirige o branch de gamificação em move().
+     */
+    private function resolveDestinationColumn(int $projectId, int $userId, bool $wantsDone): TaskColumn
+    {
+        $columns = TaskColumn::query()
+            ->where('user_id', $userId)
+            ->where('project_id', $projectId)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        abort_if($columns->isEmpty(), 422, 'O projeto de destino não possui colunas.');
+
+        return $wantsDone
+            ? ($columns->firstWhere('is_done_column', true) ?? $columns->last())
+            : ($columns->firstWhere('is_done_column', false) ?? $columns->first());
     }
 
     /** Renumera as posições de uma coluna em sequência (0..n). */
