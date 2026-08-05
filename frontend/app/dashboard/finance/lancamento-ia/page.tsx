@@ -5,7 +5,8 @@ import { CreditCard as CreditCardIcon, FileText, Landmark, ScanLine, Sparkles, U
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { formatCurrency, todayISO } from "@/lib/format";
+import { todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import {
   checkAiReceiptDuplicates,
@@ -86,6 +87,7 @@ function emptyForm(): ReviewForm {
 }
 
 export default function AiReceiptPage() {
+  const { formatCurrency } = usePrivateFormat();
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);

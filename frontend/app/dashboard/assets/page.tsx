@@ -5,7 +5,9 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { formatCurrency, toNumber } from "@/lib/format";
+import { toNumber } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
+import { cn } from "@/lib/utils";
 import { appToast } from "@/lib/toast";
 import { createAsset, deleteAsset, getAssets, updateAsset } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -25,6 +27,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 
 export default function AssetsPage() {
+  const { formatCurrency, maskInput } = usePrivateFormat();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [values, setValues] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -164,7 +167,7 @@ export default function AssetsPage() {
                   <Input
                     type="number"
                     step="0.01"
-                    className="w-40"
+                    className={cn("w-40", maskInput)}
                     value={values[asset.id] ?? ""}
                     onChange={(e) => setValues((prev) => ({ ...prev, [asset.id]: e.target.value }))}
                   />

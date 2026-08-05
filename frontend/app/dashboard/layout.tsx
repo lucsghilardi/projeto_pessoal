@@ -1,6 +1,8 @@
 "use client";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { PrivacyProvider } from "@/context/PrivacyContext";
+import { PrivacyToggle } from "@/components/dashboard/privacy-toggle";
 import { canAccessDashboardRoute, getDashboardFallbackRoute } from "@/lib/dashboard-access";
 import { AppSidebar } from "@/components/app-sidebar"
 import { Spinner } from "@/components/ui/spinner";
@@ -107,6 +109,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 })}
               </BreadcrumbList>
             </Breadcrumb>
+
+            <div className="ml-auto flex items-center gap-2">
+              <PrivacyToggle />
+            </div>
           </div>
         </header>
         <main className="min-w-0 p-4 md:p-6">
@@ -120,9 +126,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout(
   { children }: { children: React.ReactNode }
 ) {
+  // PrivacyProvider fica por fora do shell: o shell retorna cedo enquanto a auth
+  // carrega, e um provider dentro dessa árvore remontaria e perderia o estado.
   return (
     <AuthProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <PrivacyProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </PrivacyProvider>
     </AuthProvider>
   )
 }

@@ -5,7 +5,9 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { formatCurrency, toNumber } from "@/lib/format";
+import { toNumber } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
+import { cn } from "@/lib/utils";
 import { appToast } from "@/lib/toast";
 import {
   createBankAccount,
@@ -30,6 +32,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 
 export default function AccountsPage() {
+  const { formatCurrency, maskInput } = usePrivateFormat();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [balances, setBalances] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -167,7 +170,7 @@ export default function AccountsPage() {
                   <Input
                     type="number"
                     step="0.01"
-                    className="w-40"
+                    className={cn("w-40", maskInput)}
                     value={balances[account.id] ?? ""}
                     onChange={(e) => setBalances((prev) => ({ ...prev, [account.id]: e.target.value }))}
                   />

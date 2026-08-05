@@ -28,6 +28,9 @@ export type DashboardNavEntry =
 
 const ALL_ROLES: UserRole[] = ["admin", "editor", "viewer"];
 
+/** Tela inicial do painel: para onde /dashboard leva depois do login. */
+export const DASHBOARD_HOME_ROUTE = "/dashboard/tarefas/relatorios";
+
 const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/tarefas", roles: ALL_ROLES },
   { path: "/dashboard/investments", roles: ALL_ROLES },
@@ -143,6 +146,12 @@ export function isDashboardItemActive(pathname: string, url: string) {
 }
 
 export function getDashboardFallbackRoute(role: UserRole) {
+  // Mesma tela do login, desde que o papel alcance — a guarda evita mandar
+  // alguém para uma rota barrada e criar um laço de redirecionamento.
+  if (canAccessDashboardRoute(role, DASHBOARD_HOME_ROUTE)) {
+    return DASHBOARD_HOME_ROUTE;
+  }
+
   const first = getDashboardNavForRole(role)[0];
 
   if (!first) {

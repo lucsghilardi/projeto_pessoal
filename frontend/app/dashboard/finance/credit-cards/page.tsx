@@ -6,7 +6,8 @@ import { CreditCard as CreditCardIcon, Pencil, Plus, Trash2 } from "lucide-react
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { formatCurrency, toNumber } from "@/lib/format";
+import { toNumber } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import {
   createCreditCard,
@@ -49,6 +50,7 @@ const emptyForm: FormState = {
 };
 
 export default function CreditCardsPage() {
+  const { formatCurrency } = usePrivateFormat();
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

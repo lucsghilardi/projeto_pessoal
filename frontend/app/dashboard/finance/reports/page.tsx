@@ -14,8 +14,10 @@ import {
 } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { compactCurrency, currentMonth, formatCurrency, monthShort, shiftMonth } from "@/lib/format";
+import { currentMonth, monthShort, shiftMonth } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import { getFinanceReports } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -46,6 +48,7 @@ const RANGE_OPTIONS = [
 ];
 
 export default function FinanceReportsPage() {
+  const { compactCurrency, formatCurrency } = usePrivateFormat();
   const [rangeMonths, setRangeMonths] = useState("12");
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,18 +162,20 @@ export default function FinanceReportsPage() {
         </CardHeader>
         <CardContent className="h-80">
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
-                <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                <Legend />
-                <Bar dataKey="Receita" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="Saldo" stroke="#2563eb" strokeWidth={2} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <PrivateChart>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
+                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <Legend />
+                  <Bar dataKey="Receita" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Despesa" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="Saldo" stroke="#2563eb" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </PrivateChart>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Sem dados no período.

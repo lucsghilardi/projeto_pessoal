@@ -6,7 +6,8 @@ import { History, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import { formatCurrency, formatFullDate, toNumber, todayISO } from "@/lib/format";
+import { formatFullDate, toNumber, todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import {
   createAcerto,
@@ -66,6 +67,7 @@ const emptyForm: FormState = {
 };
 
 export default function AcertosPage() {
+  const { formatCurrency } = usePrivateFormat();
   const [acertos, setAcertos] = useState<Acerto[]>([]);
   const [despesaCategories, setDespesaCategories] = useState<FinanceCategory[]>([]);
   const [receitaCategories, setReceitaCategories] = useState<FinanceCategory[]>([]);
@@ -544,6 +546,8 @@ function AcertoSection({
   onEdit: (a: Acerto) => void;
   onDelete: (a: Acerto) => void;
 }) {
+  const { formatCurrency } = usePrivateFormat();
+
   return (
     <Card>
       <CardHeader>

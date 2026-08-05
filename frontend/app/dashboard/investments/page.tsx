@@ -18,9 +18,12 @@ import {
 } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import { formatCurrency, toNumber, todayISO } from "@/lib/format";
+import { toNumber, todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
+import { cn } from "@/lib/utils";
 import { appToast } from "@/lib/toast";
 import {
   addContribution,
@@ -129,10 +132,6 @@ const emptyForm: FormState = {
   tag_ids: [],
 };
 
-function formatPercent(value: number) {
-  return `${value > 0 ? "+" : ""}${value.toFixed(2).replace(".", ",")}%`;
-}
-
 function investmentToForm(investment: Investment): FormState {
   return {
     name: investment.name,
@@ -148,6 +147,7 @@ function investmentToForm(investment: Investment): FormState {
 }
 
 export default function InvestmentsPage() {
+  const { formatCurrency, formatPercent, maskInput } = usePrivateFormat();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [tags, setTags] = useState<InvestmentTag[]>([]);
   const [institutions, setInstitutions] = useState<InvestmentInstitution[]>([]);
@@ -499,17 +499,19 @@ export default function InvestmentsPage() {
           </CardHeader>
           <CardContent className="h-72">
             {evolutionChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={evolutionChart} margin={{ left: 4, right: 8, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} width={70}
-                    tickFormatter={(v) => formatCurrency(Number(v))} />
-                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                  <Area type="monotone" dataKey="Aplicado" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.15} />
-                  <Area type="monotone" dataKey="Patrimônio" stroke="#2563eb" fill="#2563eb" fillOpacity={0.2} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <PrivateChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={evolutionChart} margin={{ left: 4, right: 8, top: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={12} tickLine={false} axisLine={false} width={70}
+                      tickFormatter={(v) => formatCurrency(Number(v))} />
+                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                    <Area type="monotone" dataKey="Aplicado" stroke="#94a3b8" fill="#94a3b8" fillOpacity={0.15} />
+                    <Area type="monotone" dataKey="Patrimônio" stroke="#2563eb" fill="#2563eb" fillOpacity={0.2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </PrivateChart>
             ) : (
               <EmptyChart />
             )}
@@ -523,16 +525,18 @@ export default function InvestmentsPage() {
           </CardHeader>
           <CardContent className="h-72">
             {byTypeChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={byTypeChart} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
-                    {byTypeChart.map((_, index) => (
-                      <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PrivateChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={byTypeChart} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
+                      {byTypeChart.map((_, index) => (
+                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </PrivateChart>
             ) : (
               <EmptyChart />
             )}
@@ -550,20 +554,22 @@ export default function InvestmentsPage() {
         </CardHeader>
         <CardContent className="h-64">
           {byPurposeChart.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byPurposeChart} margin={{ left: 4, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} width={70}
-                  tickFormatter={(v) => formatCurrency(Number(v))} />
-                <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {byPurposeChart.map((entry, index) => (
-                    <Cell key={index} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <PrivateChart>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={byPurposeChart} margin={{ left: 4, right: 8, top: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} width={70}
+                    tickFormatter={(v) => formatCurrency(Number(v))} />
+                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {byPurposeChart.map((entry, index) => (
+                      <Cell key={index} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </PrivateChart>
           ) : (
             <EmptyChart label="Crie propósitos e vincule aos investimentos." />
           )}
@@ -926,7 +932,7 @@ export default function InvestmentsPage() {
                   </div>
                   <Input
                     type="number" step="0.01" min="0"
-                    className="w-36"
+                    className={cn("w-36", maskInput)}
                     value={updateValues[investment.id] ?? ""}
                     onChange={(e) =>
                       setUpdateValues((prev) => ({ ...prev, [investment.id]: e.target.value }))

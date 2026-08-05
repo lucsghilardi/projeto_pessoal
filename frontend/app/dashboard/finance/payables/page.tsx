@@ -6,7 +6,8 @@ import { Check, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } fro
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import { currentMonth, formatCurrency, formatDate, monthLabel, shiftMonth, toNumber, todayISO } from "@/lib/format";
+import { currentMonth, formatDate, monthLabel, shiftMonth, toNumber, todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import {
   createPayable,
@@ -74,6 +75,7 @@ const emptyForm: FormState = {
 };
 
 export default function PayablesPage() {
+  const { formatCurrency } = usePrivateFormat();
   const [month, setMonth] = useState(currentMonth());
   const [payables, setPayables] = useState<Payable[]>([]);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);

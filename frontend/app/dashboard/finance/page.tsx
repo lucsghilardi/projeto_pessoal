@@ -6,8 +6,10 @@ import { ArrowDownCircle, ArrowUpCircle, Banknote, ChevronLeft, ChevronRight } f
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { currentMonth, formatCurrency, monthLabel, shiftMonth } from "@/lib/format";
+import { currentMonth, monthLabel, shiftMonth } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import { getFinanceSummary } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function FinanceDashboardPage() {
+  const { formatCurrency } = usePrivateFormat();
   const [month, setMonth] = useState(currentMonth());
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,16 +112,18 @@ export default function FinanceDashboardPage() {
           </CardHeader>
           <CardContent className="h-72">
             {byCategory.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={byCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
-                    {byCategory.map((entry, index) => (
-                      <Cell key={index} fill={entry.color || "#64748b"} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PrivateChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={byCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
+                      {byCategory.map((entry, index) => (
+                        <Cell key={index} fill={entry.color || "#64748b"} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </PrivateChart>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 Sem contas a pagar neste mês.

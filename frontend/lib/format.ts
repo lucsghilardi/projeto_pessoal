@@ -16,6 +16,11 @@ export function compactCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+/** 12.3 -> "+12,30%" / -4 -> "-4,00%" (rentabilidade). */
+export function formatPercent(value: number) {
+  return `${value > 0 ? "+" : ""}${value.toFixed(2).replace(".", ",")}%`;
+}
+
 export function toNumber(value: string | number) {
   return typeof value === "number" ? value : Number.parseFloat(value || "0");
 }

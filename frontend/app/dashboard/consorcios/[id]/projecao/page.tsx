@@ -22,9 +22,11 @@ import {
 } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import { compactCurrency, formatCurrency, toNumber } from "@/lib/format";
+import { toNumber } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { buildProjecao, buildProjecaoContemplado, comparativoIpca, projecaoAnual } from "@/lib/consorcio";
 import { appToast } from "@/lib/toast";
 import { getConsorcios } from "@/services/api";
@@ -54,6 +56,7 @@ function parseNumber(value: string) {
 }
 
 export default function ConsorcioProjecaoPage() {
+  const { compactCurrency, formatCurrency } = usePrivateFormat();
   const params = useParams<{ id: string }>();
   const consorcioId = Number(params.id);
 
@@ -295,24 +298,26 @@ export default function ConsorcioProjecaoPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donut}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={56}
-                      outerRadius={88}
-                      paddingAngle={2}
-                    >
-                      {donut.map((d) => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                <PrivateChart>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donut}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={56}
+                        outerRadius={88}
+                        paddingAngle={2}
+                      >
+                        {donut.map((d) => (
+                          <Cell key={d.name} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </PrivateChart>
               </CardContent>
             </Card>
 
@@ -327,25 +332,27 @@ export default function ConsorcioProjecaoPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={evolucao} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
-                    <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
-                    <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
-                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="Pago acumulado"
-                      stroke="#22c55e"
-                      fill="#22c55e"
-                      fillOpacity={0.15}
-                      strokeWidth={2}
-                    />
-                    <Line type="monotone" dataKey="Saldo devedor" stroke="#ef4444" strokeWidth={2} dot={false} />
-                    {!contemplado ? <ReferenceLine x={`${anoContemplacao}a`} stroke="#f59e0b" strokeDasharray="6 4" /> : null}
-                  </ComposedChart>
-                </ResponsiveContainer>
+                <PrivateChart>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={evolucao} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                      <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
+                      <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="Pago acumulado"
+                        stroke="#22c55e"
+                        fill="#22c55e"
+                        fillOpacity={0.15}
+                        strokeWidth={2}
+                      />
+                      <Line type="monotone" dataKey="Saldo devedor" stroke="#ef4444" strokeWidth={2} dot={false} />
+                      {!contemplado ? <ReferenceLine x={`${anoContemplacao}a`} stroke="#f59e0b" strokeDasharray="6 4" /> : null}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </PrivateChart>
               </CardContent>
             </Card>
           </div>
@@ -385,25 +392,27 @@ export default function ConsorcioProjecaoPage() {
               </div>
 
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={comparativo.data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
-                    <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
-                    <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
-                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                    <Legend />
-                    {comparativo.totais.map((c) => (
-                      <Line
-                        key={c.key}
-                        type="monotone"
-                        dataKey={c.key}
-                        stroke={CENARIO_CORES[c.key] ?? "#64748b"}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                <PrivateChart>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={comparativo.data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                      <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
+                      <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
+                      <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                      <Legend />
+                      {comparativo.totais.map((c) => (
+                        <Line
+                          key={c.key}
+                          type="monotone"
+                          dataKey={c.key}
+                          stroke={CENARIO_CORES[c.key] ?? "#64748b"}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </PrivateChart>
               </div>
 
               <Table>

@@ -28,9 +28,11 @@ import {
 } from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import { formatCurrency, formatFullDate, toNumber, todayISO } from "@/lib/format";
+import { formatFullDate, toNumber, todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { buildProjecao, buildProjecaoContemplado } from "@/lib/consorcio";
 import { appToast } from "@/lib/toast";
 import {
@@ -99,6 +101,7 @@ type GenerateFormState = {
 };
 
 export default function ConsorcioDetailPage() {
+  const { formatCurrency } = usePrivateFormat();
   const params = useParams<{ id: string }>();
   const consorcioId = Number(params.id);
 
@@ -516,39 +519,41 @@ export default function ConsorcioDetailPage() {
         <CardContent>
           <div className="grid items-center gap-4 sm:grid-cols-[1fr_220px]">
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={72}
-                    outerRadius={104}
-                    paddingAngle={2}
-                    strokeWidth={0}
-                  >
-                    {pieData.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                    <Label
-                      position="center"
-                      content={({ viewBox }) => {
-                        const vb = viewBox as { cx: number; cy: number };
-                        return (
-                          <text x={vb.cx} y={vb.cy} textAnchor="middle" dominantBaseline="middle">
-                            <tspan x={vb.cx} dy="-0.5em" fontSize="11" fill="#6b7280">Total</tspan>
-                            <tspan x={vb.cx} dy="1.5em" fontSize="16" fontWeight="600" fill="#111827">
-                              {formatCurrency(totalEstimado)}
-                            </tspan>
-                          </text>
-                        );
-                      }}
-                    />
-                  </Pie>
-                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              <PrivateChart>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={72}
+                      outerRadius={104}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    >
+                      {pieData.map((d) => (
+                        <Cell key={d.name} fill={d.color} />
+                      ))}
+                      <Label
+                        position="center"
+                        content={({ viewBox }) => {
+                          const vb = viewBox as { cx: number; cy: number };
+                          return (
+                            <text x={vb.cx} y={vb.cy} textAnchor="middle" dominantBaseline="middle">
+                              <tspan x={vb.cx} dy="-0.5em" fontSize="11" fill="#6b7280">Total</tspan>
+                              <tspan x={vb.cx} dy="1.5em" fontSize="16" fontWeight="600" fill="#111827">
+                                {formatCurrency(totalEstimado)}
+                              </tspan>
+                            </text>
+                          );
+                        }}
+                      />
+                    </Pie>
+                    <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </PrivateChart>
             </div>
             <div className="space-y-3 text-sm sm:pr-4">
               <div className="flex items-center justify-between gap-4">

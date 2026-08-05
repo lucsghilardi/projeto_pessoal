@@ -16,8 +16,9 @@ import {
 } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
+import { PrivateChart } from "@/components/dashboard/private-chart";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
-import { compactCurrency, formatCurrency } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import { getInvestmentSummary } from "@/services/api";
 import { ApiError } from "@/services/apiError";
@@ -99,6 +100,7 @@ const SCENARIO_COLORS = {
 } as const;
 
 export default function Plano1MilhaoPage() {
+  const { compactCurrency, formatCurrency, maskInput } = usePrivateFormat();
   const [loading, setLoading] = useState(true);
 
   // Premissas principais.
@@ -242,6 +244,7 @@ export default function Plano1MilhaoPage() {
                 type="number"
                 min={0}
                 step={100}
+                className={maskInput}
                 value={capitalInicial}
                 onChange={(e) => setCapitalInicial(parseNumber(e.target.value))}
               />
@@ -335,18 +338,20 @@ export default function Plano1MilhaoPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
-              <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
-              <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
-              <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-              <Legend />
-              <Area type="monotone" dataKey="Saldo" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} strokeWidth={2} />
-              <Line type="monotone" dataKey="Total aportado" stroke="#64748b" strokeWidth={2} dot={false} />
-              <ReferenceLine y={meta} stroke="#f59e0b" strokeDasharray="6 4" />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <PrivateChart>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
+                <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                <Legend />
+                <Area type="monotone" dataKey="Saldo" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} strokeWidth={2} />
+                <Line type="monotone" dataKey="Total aportado" stroke="#64748b" strokeWidth={2} dot={false} />
+                <ReferenceLine y={meta} stroke="#f59e0b" strokeDasharray="6 4" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </PrivateChart>
         </CardContent>
       </Card>
 
@@ -435,19 +440,21 @@ export default function Plano1MilhaoPage() {
           </div>
 
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={comparisonData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
-                <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
-                <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
-                <Legend />
-                <ReferenceLine y={meta} stroke="#f59e0b" strokeDasharray="6 4" />
-                {scenarios.map((s) => (
-                  <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={2} dot={false} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <PrivateChart>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={comparisonData} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted" />
+                  <XAxis dataKey="ano" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis tickFormatter={compactCurrency} tickLine={false} axisLine={false} width={56} fontSize={12} />
+                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <Legend />
+                  <ReferenceLine y={meta} stroke="#f59e0b" strokeDasharray="6 4" />
+                  {scenarios.map((s) => (
+                    <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={2} dot={false} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </PrivateChart>
           </div>
 
           <Table>

@@ -8,16 +8,8 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 }
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { SummaryCard } from "@/components/dashboard/summary-card";
-import {
-  currentMonth,
-  formatCurrency,
-  formatDate,
-  formatFullDate,
-  monthLabel,
-  shiftMonth,
-  toNumber,
-  todayISO,
-} from "@/lib/format";
+import { currentMonth, formatDate, formatFullDate, monthLabel, shiftMonth, toNumber, todayISO } from "@/lib/format";
+import { usePrivateFormat } from "@/hooks/use-private-format";
 import { appToast } from "@/lib/toast";
 import {
   createCreditCardTransaction,
@@ -124,6 +116,7 @@ function splitInstallments(amount: number, count: number, amountIsTotal: boolean
 }
 
 export default function CreditCardInvoicePage() {
+  const { formatCurrency } = usePrivateFormat();
   const params = useParams<{ id: string }>();
   const cardId = Number(params.id);
 
