@@ -64,6 +64,13 @@ $COMPOSE up -d --remove-orphans
 echo "==> Religando o mount do .env"
 $COMPOSE up -d --force-recreate --no-deps php queue scheduler
 
+# O php acabou de ser recriado e provavelmente trocou de IP. O nginx do
+# container `backend` já sabe se virar (resolver + upstream em variável, ver
+# backend/nginx/laravel.conf), mas reiniciá-lo aqui elimina a janela de 502
+# até o cache de DNS expirar — e protege caso alguém remova aquele resolver.
+echo "==> Reiniciando o nginx do backend (php trocou de IP)"
+$COMPOSE restart backend
+
 echo "==> Aguardando o php-fpm ficar pronto"
 for _ in $(seq 1 30); do
   if $COMPOSE exec -T php php -v >/dev/null 2>&1; then
