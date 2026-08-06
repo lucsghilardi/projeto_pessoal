@@ -123,6 +123,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Sidecar do Garmin Connect (módulo Saúde). Só na rede interna: o Laravel o
+  # acessa em http://garmin:8000. GARMIN_SIDECAR_TOKEN e GARMIN_TOKENS_BASE64
+  # vêm do .env do Laravel — o segundo semeia o token store na primeira subida.
+  garmin:
+    build: ./garmin
+    image: sistemaraiz/garmin:latest
+    container_name: sistemaraiz_prod_garmin
+    env_file:
+      - ./backend/laravel/.env
+    environment:
+      GARMINTOKENS: /tokens
+    volumes:
+      - sistemaraiz_prod_garmin_tokens:/tokens
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
@@ -160,3 +175,8 @@ volumes:
   # desconecta o WhatsApp e obriga a parear por QR code de novo.
   sistemaraiz_prod_evolution:
     name: sistemaraiz_prod_evolution
+  # Token store do Garmin Connect. Perder este volume obriga a refazer o login
+  # com MFA (docker compose run --rm -it garmin python auth_cli.py) — a lib
+  # rotaciona o refresh token, então não há como recuperar sem interação.
+  sistemaraiz_prod_garmin_tokens:
+    name: sistemaraiz_prod_garmin_tokens

@@ -3,6 +3,7 @@
 use App\Jobs\EnviarLembretesSuplementos;
 use App\Jobs\GerarRelatorioDiario;
 use App\Jobs\GerarResumoMatinal;
+use App\Jobs\SincronizarGarmin;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -25,3 +26,9 @@ Schedule::job(new GerarRelatorioDiario)
 // check-in no dia. O job calcula "hoje" em config('saude.timezone') e não
 // reenvia o mesmo lembrete (tabela saude_lembretes).
 Schedule::job(new EnviarLembretesSuplementos)->everyFiveMinutes();
+
+// Módulo Saúde: importa as atividades do Garmin Connect pelo sidecar `garmin`.
+// Reprocessa a janela de config('garmin.dias_janela') dias — o dedupe por
+// garmin_activity_id garante que reimportar não duplica. Sem GARMIN_ATIVO=true
+// o job retorna sem fazer nada.
+Schedule::job(new SincronizarGarmin)->hourly();

@@ -30,6 +30,10 @@ class MetaController extends Controller
             'sexo' => ['nullable', Rule::in(['M', 'F'])],
             'data_nascimento' => ['nullable', 'date_format:Y-m-d', 'before:today'],
             'nivel_atividade' => ['nullable', Rule::in(array_keys(SaudeNutricaoService::FATORES_ATIVIDADE))],
+            // Com gasto dinâmico o nível de atividade deixa de valer: o TDEE
+            // passa a ser TMB × fator_base + o gasto medido no dia.
+            'gasto_dinamico' => ['nullable', 'boolean'],
+            'fator_base' => ['nullable', 'numeric', 'min:1', 'max:1.6'],
             'calorias_alvo' => ['nullable', 'integer', 'min:800', 'max:6000'],
             'proteinas_alvo_g' => ['nullable', 'integer', 'min:20', 'max:400'],
         ]);
@@ -43,6 +47,8 @@ class MetaController extends Controller
                 'sexo' => $data['sexo'] ?? null,
                 'data_nascimento' => $data['data_nascimento'] ?? null,
                 'nivel_atividade' => $data['nivel_atividade'] ?? null,
+                'gasto_dinamico' => $data['gasto_dinamico'] ?? false,
+                'fator_base' => $data['fator_base'] ?? null,
                 'calorias_alvo' => $data['calorias_alvo'] ?? null,
                 'proteinas_alvo_g' => $data['proteinas_alvo_g'] ?? null,
             ],

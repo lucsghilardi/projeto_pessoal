@@ -25,6 +25,8 @@ class ExercicioController extends Controller
             'series' => ['nullable', 'integer', 'min:1', 'max:50'],
             'repeticoes' => ['nullable', 'string', 'max:30'],
             'carga' => ['nullable', 'string', 'max:30'],
+            'duracao_min' => ['nullable', 'integer', 'min:1', 'max:600'],
+            'intensidade' => ['nullable', 'string', 'max:30'],
             'observacoes' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -35,6 +37,8 @@ class ExercicioController extends Controller
             'series' => $data['series'] ?? null,
             'repeticoes' => $data['repeticoes'] ?? null,
             'carga' => $data['carga'] ?? null,
+            'duracao_min' => $data['duracao_min'] ?? null,
+            'intensidade' => $data['intensidade'] ?? null,
             'observacoes' => $data['observacoes'] ?? null,
             'posicao' => (int) SaudeExercicio::where('treino_id', $data['treino_id'])->max('posicao') + 1,
         ]);
@@ -51,6 +55,8 @@ class ExercicioController extends Controller
             'series' => ['nullable', 'integer', 'min:1', 'max:50'],
             'repeticoes' => ['nullable', 'string', 'max:30'],
             'carga' => ['nullable', 'string', 'max:30'],
+            'duracao_min' => ['nullable', 'integer', 'min:1', 'max:600'],
+            'intensidade' => ['nullable', 'string', 'max:30'],
             'observacoes' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -59,6 +65,8 @@ class ExercicioController extends Controller
             'series' => $data['series'] ?? null,
             'repeticoes' => $data['repeticoes'] ?? null,
             'carga' => $data['carga'] ?? null,
+            'duracao_min' => $data['duracao_min'] ?? null,
+            'intensidade' => $data['intensidade'] ?? null,
             'observacoes' => $data['observacoes'] ?? null,
         ]);
 

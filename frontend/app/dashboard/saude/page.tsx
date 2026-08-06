@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Dumbbell, Scale, Settings2 } from "lucide-react";
+import { ArrowRight, Dumbbell, Footprints, Scale, Settings2 } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
@@ -342,7 +342,7 @@ export default function SaudePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -357,20 +357,24 @@ export default function SaudePage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              {overview.treinos.map((treino) => (
-                <Button
-                  key={treino.id}
-                  variant={
-                    overview.sessao_hoje?.treino_id === treino.id
-                      ? "default"
-                      : "outline"
-                  }
-                  disabled={salvandoSessao}
-                  onClick={() => marcarTreino(treino)}
-                >
-                  {treino.nome}
-                </Button>
-              ))}
+              {/* Só musculação: ficha de cardio é prescrição e se registra em
+                  /saude/cardio — marcá-la aqui sobrescreveria o treino do dia. */}
+              {overview.treinos
+                .filter((treino) => treino.tipo !== "cardio")
+                .map((treino) => (
+                  <Button
+                    key={treino.id}
+                    variant={
+                      overview.sessao_hoje?.treino_id === treino.id
+                        ? "default"
+                        : "outline"
+                    }
+                    disabled={salvandoSessao}
+                    onClick={() => marcarTreino(treino)}
+                  >
+                    {treino.nome}
+                  </Button>
+                ))}
             </div>
             <p className="text-xs text-muted-foreground">
               {sessoesSemana} {sessoesSemana === 1 ? "treino" : "treinos"} nos
@@ -381,6 +385,48 @@ export default function SaudePage() {
               className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline"
             >
               Ver fichas A/B
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Footprints className="size-4 text-emerald-600" />
+              Cardio de hoje
+            </CardTitle>
+            <CardDescription>
+              {overview.cardio_hoje.length > 0
+                ? `${overview.cardio_hoje.reduce((total, c) => total + c.duracao_min, 0)} min hoje, em ${overview.cardio_hoje.length} sessão(ões).`
+                : "Nenhum cardio registrado hoje."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {overview.cardio_hoje.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {overview.cardio_hoje.map((cardio) => (
+                  <li key={cardio.id} className="flex justify-between gap-2">
+                    <span className="truncate">
+                      {cardio.horario ? `${cardio.horario.slice(0, 5)} · ` : ""}
+                      {cardio.treino?.nome ?? "Avulso"}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {cardio.duracao_min} min
+                      {cardio.fc_media ? ` · ${cardio.fc_media} bpm` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {overview.cardio_semana.minutos} de 150 min na semana.
+            </p>
+            <Link
+              href="/dashboard/saude/cardio"
+              className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline"
+            >
+              Registrar cardio
               <ArrowRight className="size-3.5" />
             </Link>
           </CardContent>

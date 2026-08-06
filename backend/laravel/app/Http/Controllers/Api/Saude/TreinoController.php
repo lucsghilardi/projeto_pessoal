@@ -30,6 +30,7 @@ class TreinoController extends Controller
         $treino = SaudeTreino::create([
             'user_id' => $userId,
             'nome' => $data['nome'],
+            'tipo' => $data['tipo'] ?? 'musculacao',
             'posicao' => $data['posicao']
                 ?? ((int) SaudeTreino::where('user_id', $userId)->max('posicao') + 1),
         ]);
@@ -45,6 +46,7 @@ class TreinoController extends Controller
 
         $treino->update([
             'nome' => $data['nome'],
+            'tipo' => $data['tipo'] ?? $treino->tipo,
             'posicao' => $data['posicao'] ?? $treino->posicao,
         ]);
 
@@ -71,6 +73,7 @@ class TreinoController extends Controller
                     ->where('user_id', $request->user()->id)
                     ->ignore($ignore?->id),
             ],
+            'tipo' => ['nullable', Rule::in(['musculacao', 'cardio'])],
             'posicao' => ['nullable', 'integer', 'min:0'],
         ]);
     }

@@ -13,6 +13,7 @@ class SaudeTreino extends Model
     protected $fillable = [
         'user_id',
         'nome',
+        'tipo',
         'posicao',
     ];
 
@@ -33,5 +34,11 @@ class SaudeTreino extends Model
     public function sessoes(): HasMany
     {
         return $this->hasMany(SaudeTreinoSessao::class, 'treino_id');
+    }
+
+    /** Execuções de cardio prescritas por esta ficha. */
+    public function cardioSessoes(): HasMany
+    {
+        return $this->hasMany(SaudeCardioSessao::class, 'treino_id');
     }
 }

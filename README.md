@@ -58,6 +58,7 @@ projeto_pessoal/
 │   ├── Dockerfile.prod      # php:8.3-fpm + nginx (prod)
 │   ├── nginx/laravel.conf   # vhost interno do container `backend`
 │   └── laravel/             # API
+├── garmin/                  # sidecar do Garmin Connect (ver garmin/README.md)
 └── frontend/
     ├── Dockerfile           # build standalone (prod)
     └── ...                  # Next.js

@@ -30,6 +30,7 @@ class NutricaoController extends Controller
             'consumido' => $resumo['consumido'],
             'restante' => $resumo['restante'],
             'refeicoes' => $resumo['refeicoes'],
+            'gasto_exercicio' => $resumo['gasto_exercicio'],
             'historico' => $this->historico((int) $request->user()->id, $data),
         ]);
     }

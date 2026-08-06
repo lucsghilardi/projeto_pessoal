@@ -108,6 +108,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Sidecar do Garmin Connect (módulo Saúde). Não existe cliente PHP mantido
+  # para a API do Garmin, então o Laravel fala com este serviço Python pela
+  # rede interna (http://garmin:8000). Ver garmin/README.md.
+  garmin:
+    build: ./garmin
+    container_name: projeto_pessoal_garmin
+    env_file:
+      - ./backend/laravel/.env
+    environment:
+      GARMINTOKENS: /tokens
+    volumes:
+      - garmin_tokens:/tokens
+    ports:
+      # Exposto no host só para depuração (http://localhost:8083/health).
+      - "8083:8000"
+    restart: unless-stopped
+
   frontend:
     image: node:22-alpine
     container_name: projeto_pessoal_frontend
@@ -133,3 +150,7 @@ volumes:
     name: projeto_pessoal_frontend_node_modules
   evolution_instances:
     name: projeto_pessoal_evolution_instances
+  # Token store do Garmin. Perder este volume obriga a refazer o login com MFA
+  # (docker compose run --rm -it garmin python auth_cli.py).
+  garmin_tokens:
+    name: projeto_pessoal_garmin_tokens

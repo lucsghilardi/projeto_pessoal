@@ -272,9 +272,17 @@ export default function CaloriasPage() {
           <p className="text-xs text-muted-foreground">
             {progresso}% da meta do dia
             {overview?.metas.tdee != null
-              ? ` · gasto estimado (TDEE): ${kcal(overview.metas.tdee)} kcal`
+              ? ` · gasto do dia (TDEE): ${kcal(overview.metas.tdee)} kcal`
+              : ""}
+            {overview?.metas.gasto_dinamico && overview.metas.gasto_exercicio > 0
+              ? `, dos quais ${kcal(overview.metas.gasto_exercicio)} kcal de exercício`
               : ""}
           </p>
+          {overview?.metas.gasto_dinamico ? (
+            <p className="text-xs text-muted-foreground">
+              Sua meta sobe conforme você treina — o número muda ao longo do dia.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

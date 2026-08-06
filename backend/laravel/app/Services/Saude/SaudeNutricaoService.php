@@ -26,6 +26,17 @@ class SaudeNutricaoService
     private const KCAL_POR_KG = 7700;
 
     /**
+     * Fator usado no TDEE dinâmico: só a vida cotidiana, sem treino nenhum —
+     * o exercício entra pelo gasto medido, não pelo multiplicador.
+     */
+    private const FATOR_BASE_PADRAO = 1.2;
+
+    /** Janela da média de gasto usada pela projeção (não pode oscilar com o dia). */
+    private const DIAS_MEDIA_GASTO = 28;
+
+    public function __construct(private readonly SaudeCardioService $cardio) {}
+
+    /**
      * Perfil consolidado: meta + última pesagem. `completo` indica se dá para
      * calcular TMB/TDEE (sexo, nascimento, altura e ao menos uma pesagem).
      *
@@ -79,19 +90,26 @@ class SaudeNutricaoService
      * Metas do dia a partir de um perfil já montado por perfil().
      * Overrides manuais (calorias_alvo / proteinas_alvo_g) têm prioridade.
      *
+     * Com `gasto_dinamico` ligado, o TDEE deixa de sair do fator de atividade
+     * (que já embute o treino) e passa a ser TMB × fator_base + o gasto real
+     * do dia — daí a meta subir conforme o dia rende.
+     *
      * @param  array{meta: SaudeMeta|null, peso_atual: float|null, idade: int|null, completo: bool}  $perfil
-     * @return array{completo: bool, tmb: int|null, tdee: int|null, calorias: int|null, proteinas_g: int|null, deficit: int|null}
+     * @return array{completo: bool, tmb: int|null, tdee: int|null, calorias: int|null, proteinas_g: int|null, deficit: int|null, gasto_exercicio: int, gasto_dinamico: bool}
      */
-    public function metas(array $perfil): array
+    public function metas(array $perfil, int $gastoExercicio = 0): array
     {
         /** @var SaudeMeta|null $meta */
         $meta = $perfil['meta'];
 
         $tmb = $tdee = $calorias = $deficit = null;
+        $dinamico = (bool) ($meta?->gasto_dinamico ?? false);
 
         if ($perfil['completo']) {
             $tmb = $this->tmb($meta->sexo, (int) $perfil['idade'], (int) $meta->altura_cm, (float) $perfil['peso_atual']);
-            $tdee = $this->tdee($tmb, $meta->nivel_atividade);
+            $tdee = $dinamico
+                ? (int) round($tmb * (float) ($meta->fator_base ?? self::FATOR_BASE_PADRAO)) + $gastoExercicio
+                : $this->tdee($tmb, $meta->nivel_atividade);
             $calorias = $meta->calorias_alvo ?? $this->caloriasAlvo($tdee, (float) $perfil['peso_atual'], $meta);
             $deficit = $tdee - $calorias;
         } elseif ($meta?->calorias_alvo !== null) {
@@ -111,6 +129,8 @@ class SaudeNutricaoService
             'calorias' => $calorias,
             'proteinas_g' => $proteinas,
             'deficit' => $deficit,
+            'gasto_exercicio' => $dinamico ? $gastoExercicio : 0,
+            'gasto_dinamico' => $dinamico,
         ];
     }
 
@@ -134,7 +154,7 @@ class SaudeNutricaoService
         ];
 
         $perfil = $this->perfil($user);
-        $metas = $this->metas($perfil);
+        $metas = $this->metas($perfil, $this->gastoDoDia($user, $data, $perfil));
 
         $restante = [
             'calorias' => $metas['calorias'] !== null ? $metas['calorias'] - $consumido['calorias'] : null,
@@ -150,6 +170,7 @@ class SaudeNutricaoService
             'consumido' => $consumido,
             'metas' => $metas,
             'restante' => $restante,
+            'gasto_exercicio' => $metas['gasto_exercicio'],
         ];
     }
 
@@ -165,7 +186,9 @@ class SaudeNutricaoService
             return null;
         }
 
-        $metas = $this->metas($perfil);
+        // Média, e não o gasto de hoje: com TDEE dinâmico, usar o dia corrente
+        // faria a projeção despencar todo dia de descanso.
+        $metas = $this->metas($perfil, $this->gastoMedio($user, $perfil));
         /** @var SaudeMeta|null $meta */
         $meta = $perfil['meta'];
         $pesoAtual = (float) $perfil['peso_atual'];
@@ -230,6 +253,39 @@ class SaudeNutricaoService
             'data_prevista_meta' => $dataPrevista,
             'pontos' => $pontos,
         ];
+    }
+
+    /**
+     * Gasto de exercício de um dia. Zero quando o TDEE dinâmico está desligado
+     * — assim `metas()` segue exatamente o caminho antigo.
+     *
+     * @param  array{meta: SaudeMeta|null, peso_atual: float|null}  $perfil
+     */
+    private function gastoDoDia(User $user, string $data, array $perfil): int
+    {
+        if (! ($perfil['meta']?->gasto_dinamico ?? false)) {
+            return 0;
+        }
+
+        return $this->cardio->caloriasDoDia($user->id, $data, $perfil['peso_atual']);
+    }
+
+    /**
+     * Média diária de gasto das últimas semanas, para a projeção.
+     *
+     * @param  array{meta: SaudeMeta|null, peso_atual: float|null}  $perfil
+     */
+    private function gastoMedio(User $user, array $perfil): int
+    {
+        if (! ($perfil['meta']?->gasto_dinamico ?? false)) {
+            return 0;
+        }
+
+        $tz = (string) config('saude.timezone');
+        $hoje = now($tz)->toDateString();
+        $de = now($tz)->subDays(self::DIAS_MEDIA_GASTO - 1)->toDateString();
+
+        return $this->cardio->mediaDiariaCalorias($user->id, $de, $hoje, $perfil['peso_atual']);
     }
 
     /**

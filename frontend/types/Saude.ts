@@ -40,6 +40,10 @@ export type SaudeExercicio = {
   series: number | null;
   repeticoes: string | null;
   carga: string | null;
+  /** Blocos de cardio e o cardio final do A/B. */
+  duracao_min: number | null;
+  /** Livre: "Z2", "6,5 km/h". */
+  intensidade: string | null;
   observacoes: string | null;
   posicao: number;
 };
@@ -50,12 +54,17 @@ export type SaudeExercicioPayload = {
   series?: number | null;
   repeticoes?: string | null;
   carga?: string | null;
+  duracao_min?: number | null;
+  intensidade?: string | null;
   observacoes?: string | null;
 };
+
+export type SaudeTreinoTipo = "musculacao" | "cardio";
 
 export type SaudeTreino = {
   id: number;
   nome: string;
+  tipo: SaudeTreinoTipo;
   posicao: number;
   exercicios: SaudeExercicio[];
 };
@@ -63,6 +72,7 @@ export type SaudeTreino = {
 export type SaudeTreinoResumo = {
   id: number;
   nome: string;
+  tipo: SaudeTreinoTipo;
   posicao: number;
   exercicios_count: number;
 };
@@ -72,7 +82,85 @@ export type SaudeTreinoSessao = {
   treino_id: number;
   /** "YYYY-MM-DD" */
   data: string;
+  duracao_min: number | null;
+  calorias: number | null;
+  origem: "manual" | "garmin";
   treino?: { id: number; nome: string };
+};
+
+export type SaudeCardioModalidade =
+  | "corrida_rua"
+  | "esteira"
+  | "bike"
+  | "eliptico"
+  | "caminhada"
+  | "outro";
+
+export type SaudeCardioSessao = {
+  id: number;
+  treino_id: number | null;
+  /** "YYYY-MM-DD" */
+  data: string;
+  /** "HH:MM:SS" vindo do backend — exibir com .slice(0, 5). */
+  horario: string | null;
+  nome: string | null;
+  modalidade: SaudeCardioModalidade;
+  duracao_min: number;
+  /** Decimal serializado como string (ex.: "3.15"). */
+  distancia_km: string | null;
+  calorias: number | null;
+  fc_media: number | null;
+  fc_maxima: number | null;
+  intensidade: string | null;
+  origem: "manual" | "garmin";
+  garmin_activity_id: number | null;
+  observacao: string | null;
+  treino?: { id: number; nome: string } | null;
+};
+
+export type SaudeCardioSessaoPayload = {
+  data: string;
+  /** "HH:MM" */
+  horario?: string | null;
+  nome?: string | null;
+  modalidade: SaudeCardioModalidade;
+  duracao_min: number;
+  distancia_km?: number | null;
+  calorias?: number | null;
+  fc_media?: number | null;
+  fc_maxima?: number | null;
+  intensidade?: string | null;
+  treino_id?: number | null;
+  observacao?: string | null;
+};
+
+export type SaudeGarminStatus = {
+  configurado: boolean;
+  status: {
+    ok: boolean;
+    autenticado: boolean;
+    nome?: string;
+    /** "nao_configurado" | "sidecar_indisponivel" | "tokens_invalidos" */
+    erro?: string;
+  };
+};
+
+export type SaudeGarminSync = {
+  cardio: number;
+  treinos: number;
+  dias: number;
+  ignorados: number;
+};
+
+export type SaudeCardioResumo = {
+  de: string;
+  ate: string;
+  sessoes: number;
+  minutos: number;
+  distancia_km: number;
+  calorias: number;
+  /** Minutos por modalidade, só com as que aparecem no período. */
+  por_modalidade: Partial<Record<SaudeCardioModalidade, number>>;
 };
 
 export type SaudePeso = {
@@ -106,6 +194,10 @@ export type SaudeMeta = {
   /** "YYYY-MM-DD" */
   data_nascimento: string | null;
   nivel_atividade: SaudeNivelAtividade | null;
+  /** Ligado: TDEE = TMB × fator_base + gasto real do dia (ignora nivel_atividade). */
+  gasto_dinamico: boolean;
+  /** Decimal serializado como string (ex.: "1.20"). Padrão 1,20. */
+  fator_base: string | null;
   /** Override manual da meta calórica calculada (TDEE - déficit). */
   calorias_alvo: number | null;
   /** Override manual da meta de proteína (padrão: 1,8 g/kg). */
@@ -119,6 +211,8 @@ export type SaudeMetaPayload = {
   sexo?: "M" | "F" | null;
   data_nascimento?: string | null;
   nivel_atividade?: SaudeNivelAtividade | null;
+  gasto_dinamico?: boolean;
+  fator_base?: number | null;
   calorias_alvo?: number | null;
   proteinas_alvo_g?: number | null;
 };
@@ -180,6 +274,9 @@ export type SaudeNutricaoMetas = {
   calorias: number | null;
   proteinas_g: number | null;
   deficit: number | null;
+  /** Calorias gastas no dia, já somadas ao TDEE. 0 com gasto dinâmico desligado. */
+  gasto_exercicio: number;
+  gasto_dinamico: boolean;
 };
 
 export type SaudeNutricaoOverview = {
@@ -195,6 +292,8 @@ export type SaudeNutricaoOverview = {
   /** Pode ser negativo (meta estourada). Null sem meta definida. */
   restante: { calorias: number | null; proteinas_g: number | null };
   refeicoes: SaudeRefeicao[];
+  /** Calorias gastas em exercício no dia (0 com gasto dinâmico desligado). */
+  gasto_exercicio: number;
   /** Últimos 14 dias terminando no dia consultado; dias vazios zerados. */
   historico: Array<{ data: string; calorias: number; proteinas_g: number }>;
 };
@@ -222,6 +321,12 @@ export type SaudeOverview = {
   sessao_hoje: SaudeTreinoSessao | null;
   /** Últimos 30 dias, mais recente primeiro. */
   sessoes_recentes: SaudeTreinoSessao[];
+  /** Pode ter mais de um: cardio do treino + cardio avulso no mesmo dia. */
+  cardio_hoje: SaudeCardioSessao[];
+  /** Últimos 30 dias, mais recente primeiro. */
+  cardio_recentes: SaudeCardioSessao[];
+  /** Totais dos últimos 7 dias terminando no dia consultado. */
+  cardio_semana: Omit<SaudeCardioResumo, "de" | "ate">;
   peso: {
     ultimo: SaudePeso | null;
     /** Últimos 30 registros em ordem cronológica (sparkline). */

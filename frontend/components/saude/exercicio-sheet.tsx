@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { appToast } from "@/lib/toast";
 import { createSaudeExercicio, updateSaudeExercicio } from "@/services/api";
 import { ApiError } from "@/services/apiError";
-import type { SaudeExercicio } from "@/types/Saude";
+import type { SaudeExercicio, SaudeTreinoTipo } from "@/types/Saude";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -24,18 +24,24 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** Treino que recebe o exercício novo (aba ativa na página). */
   treinoId: number | null;
+  /** Ficha de cardio troca carga/repetições por duração e intensidade. */
+  tipo: SaudeTreinoTipo;
   editing: SaudeExercicio | null;
   onSaved: () => void;
 };
 
-export function ExercicioSheet({ open, onOpenChange, treinoId, editing, onSaved }: Props) {
+export function ExercicioSheet({ open, onOpenChange, treinoId, tipo, editing, onSaved }: Props) {
   const [nome, setNome] = useState("");
   const [series, setSeries] = useState("");
   const [repeticoes, setRepeticoes] = useState("");
   const [carga, setCarga] = useState("");
+  const [duracao, setDuracao] = useState("");
+  const [intensidade, setIntensidade] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const isCardio = tipo === "cardio";
 
   useEffect(() => {
     if (!open) {
@@ -46,6 +52,8 @@ export function ExercicioSheet({ open, onOpenChange, treinoId, editing, onSaved 
     setSeries(editing?.series != null ? String(editing.series) : "");
     setRepeticoes(editing?.repeticoes ?? "");
     setCarga(editing?.carga ?? "");
+    setDuracao(editing?.duracao_min != null ? String(editing.duracao_min) : "");
+    setIntensidade(editing?.intensidade ?? "");
     setObservacoes(editing?.observacoes ?? "");
     setFormError(null);
   }, [open, editing]);
@@ -64,6 +72,8 @@ export function ExercicioSheet({ open, onOpenChange, treinoId, editing, onSaved 
       series: series.trim() ? Number(series) : null,
       repeticoes: repeticoes.trim() || null,
       carga: carga.trim() || null,
+      duracao_min: duracao.trim() ? Number(duracao) : null,
+      intensidade: intensidade.trim() || null,
       observacoes: observacoes.trim() || null,
     };
 
@@ -98,28 +108,38 @@ export function ExercicioSheet({ open, onOpenChange, treinoId, editing, onSaved 
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{editing ? "Editar exercício" : "Novo exercício"}</SheetTitle>
+          <SheetTitle>
+            {isCardio
+              ? editing
+                ? "Editar bloco"
+                : "Novo bloco"
+              : editing
+                ? "Editar exercício"
+                : "Novo exercício"}
+          </SheetTitle>
           <SheetDescription>
-            Séries, repetições e carga são texto livre — anote do seu jeito.
+            {isCardio
+              ? "Duração e intensidade do bloco. Séries só para tiros repetidos."
+              : "Séries, repetições e carga são texto livre — anote do seu jeito."}
           </SheetDescription>
         </SheetHeader>
 
         <form className="px-4 pb-4" onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor="ex-nome">Exercício</FieldLabel>
+              <FieldLabel htmlFor="ex-nome">{isCardio ? "Bloco" : "Exercício"}</FieldLabel>
               <Input
                 id="ex-nome"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder="Ex.: Supino reto"
+                placeholder={isCardio ? "Ex.: Aquecimento" : "Ex.: Supino reto"}
                 required
               />
             </Field>
 
             <div className="grid grid-cols-3 gap-3">
               <Field>
-                <FieldLabel htmlFor="ex-series">Séries</FieldLabel>
+                <FieldLabel htmlFor="ex-series">{isCardio ? "Rodadas" : "Séries"}</FieldLabel>
                 <Input
                   id="ex-series"
                   type="number"
@@ -127,27 +147,55 @@ export function ExercicioSheet({ open, onOpenChange, treinoId, editing, onSaved 
                   max={50}
                   value={series}
                   onChange={(e) => setSeries(e.target.value)}
-                  placeholder="4"
+                  placeholder={isCardio ? "6" : "4"}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="ex-repeticoes">Repetições</FieldLabel>
-                <Input
-                  id="ex-repeticoes"
-                  value={repeticoes}
-                  onChange={(e) => setRepeticoes(e.target.value)}
-                  placeholder="8-12"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="ex-carga">Carga</FieldLabel>
-                <Input
-                  id="ex-carga"
-                  value={carga}
-                  onChange={(e) => setCarga(e.target.value)}
-                  placeholder="24 kg"
-                />
-              </Field>
+              {isCardio ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="ex-duracao">Duração (min)</FieldLabel>
+                    <Input
+                      id="ex-duracao"
+                      type="number"
+                      min={1}
+                      max={600}
+                      value={duracao}
+                      onChange={(e) => setDuracao(e.target.value)}
+                      placeholder="12"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="ex-intensidade">Intensidade</FieldLabel>
+                    <Input
+                      id="ex-intensidade"
+                      value={intensidade}
+                      onChange={(e) => setIntensidade(e.target.value)}
+                      placeholder="Z2"
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="ex-repeticoes">Repetições</FieldLabel>
+                    <Input
+                      id="ex-repeticoes"
+                      value={repeticoes}
+                      onChange={(e) => setRepeticoes(e.target.value)}
+                      placeholder="8-12"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="ex-carga">Carga</FieldLabel>
+                    <Input
+                      id="ex-carga"
+                      value={carga}
+                      onChange={(e) => setCarga(e.target.value)}
+                      placeholder="24 kg"
+                    />
+                  </Field>
+                </>
+              )}
             </div>
 
             <Field>

@@ -19,7 +19,9 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
+use App\Http\Controllers\Api\Saude\CardioSessaoController;
 use App\Http\Controllers\Api\Saude\ExercicioController;
+use App\Http\Controllers\Api\Saude\GarminController;
 use App\Http\Controllers\Api\Saude\MetaController;
 use App\Http\Controllers\Api\Saude\NutricaoController;
 use App\Http\Controllers\Api\Saude\PesoController;
@@ -191,6 +193,18 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/sessoes', [TreinoSessaoController::class, 'index']);
         Route::post('/sessoes', [TreinoSessaoController::class, 'store']);
         Route::delete('/sessoes/{sessao}', [TreinoSessaoController::class, 'destroy']);
+
+        // Cardio: várias sessões por dia (ao fim do A/B ou avulso). `/resumo`
+        // precisa vir antes de `/{cardio}` para não ser capturado pelo binding.
+        Route::get('/cardio/resumo', [CardioSessaoController::class, 'resumo']);
+        Route::get('/cardio', [CardioSessaoController::class, 'index']);
+        Route::post('/cardio', [CardioSessaoController::class, 'store']);
+        Route::put('/cardio/{cardio}', [CardioSessaoController::class, 'update']);
+        Route::delete('/cardio/{cardio}', [CardioSessaoController::class, 'destroy']);
+
+        // Garmin Connect (via sidecar Python; ver config/garmin.php).
+        Route::get('/garmin/status', [GarminController::class, 'status']);
+        Route::post('/garmin/sincronizar', [GarminController::class, 'sincronizar']);
 
         Route::apiResource('pesos', PesoController::class)
             ->parameters(['pesos' => 'peso'])

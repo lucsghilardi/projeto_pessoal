@@ -88,9 +88,14 @@ import {
     WhatsappSugestaoStatus,
 } from '@/types/Whatsapp';
 import {
+    SaudeCardioResumo,
+    SaudeCardioSessao,
+    SaudeCardioSessaoPayload,
     SaudeCheckinResult,
     SaudeExercicio,
     SaudeExercicioPayload,
+    SaudeGarminStatus,
+    SaudeGarminSync,
     SaudeMeta,
     SaudeMetaPayload,
     SaudeNutricaoOverview,
@@ -1052,6 +1057,53 @@ export function registrarSaudeSessao(treinoId: number, data: string) {
 
 export function deleteSaudeSessao(id: number) {
     return apiFetch<{ message: string }>(`/saude/sessoes/${id}`, { method: 'DELETE' });
+}
+
+export function getSaudeCardio(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudeCardioSessao[]>(`/saude/cardio${qs ? `?${qs}` : ''}`);
+}
+
+export function getSaudeCardioResumo(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudeCardioResumo>(`/saude/cardio/resumo${qs ? `?${qs}` : ''}`);
+}
+
+export function createSaudeCardio(data: SaudeCardioSessaoPayload) {
+    return apiFetch<SaudeCardioSessao>('/saude/cardio', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeCardio(id: number, data: SaudeCardioSessaoPayload) {
+    return apiFetch<SaudeCardioSessao>(`/saude/cardio/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeCardio(id: number) {
+    return apiFetch<{ message: string }>(`/saude/cardio/${id}`, { method: 'DELETE' });
+}
+
+export function getSaudeGarminStatus() {
+    return apiFetch<SaudeGarminStatus>('/saude/garmin/status');
+}
+
+export function sincronizarSaudeGarmin(dias?: number) {
+    return apiFetch<SaudeGarminSync>('/saude/garmin/sincronizar', {
+        method: 'POST',
+        body: JSON.stringify(dias ? { dias } : {}),
+    });
 }
 
 export function getSaudePesos(de?: string, ate?: string) {

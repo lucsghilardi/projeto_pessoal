@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Jobs\ProcessarInboxGtd;
 use App\Jobs\ProcessarRefeicaoWhatsapp;
+use App\Models\SaudeCardioSessao;
+use App\Models\SaudeDiaGarmin;
 use App\Models\SaudeMeta;
 use App\Models\SaudePeso;
 use App\Models\SaudeRefeicao;
@@ -60,6 +62,138 @@ class SaudeNutricaoTest extends TestCase
         $this->assertSame(2888 - 500, $metas['calorias']);
         // Proteína: 1.8 g/kg do peso atual.
         $this->assertSame(166, $metas['proteinas_g']);
+    }
+
+    public function test_gasto_dinamico_desligado_nao_altera_metas(): void
+    {
+        // Guarda de regressão: os números de test_tmb_tdee_e_metas_derivadas
+        // têm que sobreviver mesmo com cardio registrado no dia.
+        $user = $this->usuarioComPerfil();
+        SaudeCardioSessao::create([
+            'user_id' => $user->id,
+            'data' => now()->toDateString(),
+            'modalidade' => 'corrida_rua',
+            'duracao_min' => 45,
+            'calorias' => 500,
+            'origem' => 'manual',
+        ]);
+
+        $service = app(SaudeNutricaoService::class);
+        $metas = $service->resumoDia($user, now()->toDateString())['metas'];
+
+        $this->assertFalse($metas['gasto_dinamico']);
+        $this->assertSame(2888, $metas['tdee']);
+        $this->assertSame(2888 - 500, $metas['calorias']);
+        $this->assertSame(0, $metas['gasto_exercicio']);
+    }
+
+    public function test_gasto_dinamico_soma_o_exercicio_ao_tdee(): void
+    {
+        $user = $this->usuarioComPerfil(['gasto_dinamico' => true]);
+        SaudeCardioSessao::create([
+            'user_id' => $user->id,
+            'data' => now()->toDateString(),
+            'modalidade' => 'corrida_rua',
+            'duracao_min' => 45,
+            'calorias' => 420,
+            'origem' => 'manual',
+        ]);
+
+        $metas = app(SaudeNutricaoService::class)
+            ->resumoDia($user, now()->toDateString())['metas'];
+
+        // TMB 1863 × 1,2 = 2236, + 420 gastos.
+        $this->assertTrue($metas['gasto_dinamico']);
+        $this->assertSame(420, $metas['gasto_exercicio']);
+        $this->assertSame(2236 + 420, $metas['tdee']);
+    }
+
+    public function test_calorias_ativas_do_relogio_vencem_a_soma_das_sessoes(): void
+    {
+        $user = $this->usuarioComPerfil(['gasto_dinamico' => true]);
+        $hoje = now()->toDateString();
+
+        SaudeCardioSessao::create([
+            'user_id' => $user->id,
+            'data' => $hoje,
+            'modalidade' => 'corrida_rua',
+            'duracao_min' => 22,
+            'calorias' => 288,
+            'origem' => 'garmin',
+        ]);
+        // O dia do relógio cobre também os passos fora de atividade registrada.
+        SaudeDiaGarmin::create([
+            'user_id' => $user->id,
+            'data' => $hoje,
+            'passos' => 8344,
+            'calorias_ativas' => 414,
+            'calorias_totais' => 2611,
+        ]);
+
+        $metas = app(SaudeNutricaoService::class)->resumoDia($user, $hoje)['metas'];
+
+        $this->assertSame(414, $metas['gasto_exercicio']);
+    }
+
+    public function test_calorias_estimadas_por_met_quando_nao_ha_medicao(): void
+    {
+        $user = $this->usuarioComPerfil(['gasto_dinamico' => true]);
+        SaudeCardioSessao::create([
+            'user_id' => $user->id,
+            'data' => now()->toDateString(),
+            'modalidade' => 'caminhada',
+            'duracao_min' => 60,
+            'origem' => 'manual',
+        ]);
+
+        $metas = app(SaudeNutricaoService::class)
+            ->resumoDia($user, now()->toDateString())['metas'];
+
+        // (3,5 - 1) × 3,5 × 92 kg / 200 × 60 min = 241,5
+        $this->assertSame(242, $metas['gasto_exercicio']);
+    }
+
+    public function test_projecao_usa_a_media_e_nao_o_gasto_de_hoje(): void
+    {
+        $user = $this->usuarioComPerfil(['gasto_dinamico' => true]);
+        // Um único treino pesado em 28 dias: a projeção tem que diluí-lo.
+        SaudeCardioSessao::create([
+            'user_id' => $user->id,
+            'data' => now()->toDateString(),
+            'modalidade' => 'corrida_rua',
+            'duracao_min' => 60,
+            'calorias' => 700,
+            'origem' => 'manual',
+        ]);
+
+        $service = app(SaudeNutricaoService::class);
+
+        $tdeeHoje = $service->resumoDia($user, now()->toDateString())['metas']['tdee'];
+        $ritmoProjecao = $service->projecao($user)['ritmo_plano_kg_semana'];
+
+        $this->assertSame(2236 + 700, $tdeeHoje);
+
+        // 700 kcal diluídas em 28 dias = 25/dia; TDEE da projeção ≈ 2261, com
+        // déficit padrão de 500 → 500 × 7 / 7700 ≈ 0,45 kg/semana.
+        $this->assertSame(0.45, $ritmoProjecao);
+    }
+
+    /** @param  array<string, mixed>  $meta */
+    private function usuarioComPerfil(array $meta = []): User
+    {
+        $user = User::factory()->create();
+
+        SaudeMeta::create($meta + [
+            'user_id' => $user->id,
+            'peso_meta_kg' => 82,
+            'altura_cm' => 178,
+            'sexo' => 'M',
+            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'nivel_atividade' => 'moderado',
+        ]);
+        SaudePeso::create(['user_id' => $user->id, 'data' => now()->toDateString(), 'peso_kg' => 92]);
+
+        return $user;
     }
 
     public function test_deficit_respeita_teto_e_piso(): void

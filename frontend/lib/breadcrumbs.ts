@@ -25,5 +25,6 @@ export const breadcrumbMap: Record<string, string> = {
   saude: "Saúde",
   calorias: "Calorias",
   treinos: "Treinos",
+  cardio: "Cardio",
   peso: "Peso",
 };

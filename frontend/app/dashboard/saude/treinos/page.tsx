@@ -91,6 +91,7 @@ export default function TreinosPage() {
 
   const treinoSelecionado =
     treinos.find((t) => String(t.id) === treinoAtivo) ?? null;
+  const isCardio = treinoSelecionado?.tipo === "cardio";
 
   function openCreate() {
     setEditing(null);
@@ -187,11 +188,11 @@ export default function TreinosPage() {
     <div className="space-y-5">
       <DashboardPageHeader
         title="Treinos"
-        description="Fichas A e B com séries, repetições e carga atual — e o histórico dos dias treinados."
+        description="Fichas de musculação e de cardio — e o histórico dos dias treinados."
         actions={
           <Button onClick={openCreate} disabled={!treinoSelecionado}>
             <Plus className="size-4" />
-            Novo exercício
+            {isCardio ? "Novo bloco" : "Novo exercício"}
           </Button>
         }
       />
@@ -216,23 +217,32 @@ export default function TreinosPage() {
             <CardHeader>
               <CardTitle>{treinoSelecionado?.nome}</CardTitle>
               <CardDescription>
-                {treinoSelecionado?.exercicios.length ?? 0} exercício(s) na ficha.
+                {treinoSelecionado?.exercicios.length ?? 0}{" "}
+                {isCardio ? "bloco(s)" : "exercício(s)"} na ficha.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {!treinoSelecionado || treinoSelecionado.exercicios.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  Nenhum exercício ainda. Clique em “Novo exercício”.
+                  {isCardio
+                    ? "Nenhum bloco ainda. Clique em “Novo bloco”."
+                    : "Nenhum exercício ainda. Clique em “Novo exercício”."}
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-20">Ordem</TableHead>
-                      <TableHead>Exercício</TableHead>
-                      <TableHead className="text-center">Séries</TableHead>
-                      <TableHead className="text-center">Repetições</TableHead>
-                      <TableHead>Carga atual</TableHead>
+                      <TableHead>{isCardio ? "Bloco" : "Exercício"}</TableHead>
+                      <TableHead className="text-center">
+                        {isCardio ? "Rodadas" : "Séries"}
+                      </TableHead>
+                      <TableHead className="text-center">
+                        {isCardio ? "Duração" : "Reps / min"}
+                      </TableHead>
+                      <TableHead>
+                        {isCardio ? "Intensidade" : "Carga / intensidade"}
+                      </TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -270,10 +280,16 @@ export default function TreinosPage() {
                         <TableCell className="text-center tabular-nums">
                           {exercicio.series ?? "—"}
                         </TableCell>
+                        {/* Ficha de musculação também tem blocos de cardio (o
+                            aquecimento e o cardio final) — cai no fallback. */}
                         <TableCell className="text-center tabular-nums">
-                          {exercicio.repeticoes ?? "—"}
+                          {exercicio.duracao_min
+                            ? `${exercicio.duracao_min} min`
+                            : (exercicio.repeticoes ?? "—")}
                         </TableCell>
-                        <TableCell>{exercicio.carga ?? "—"}</TableCell>
+                        <TableCell>
+                          {exercicio.intensidade ?? exercicio.carga ?? "—"}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -353,6 +369,7 @@ export default function TreinosPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         treinoId={treinoSelecionado?.id ?? null}
+        tipo={treinoSelecionado?.tipo ?? "musculacao"}
         editing={editing}
         onSaved={load}
       />

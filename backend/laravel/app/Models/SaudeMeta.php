@@ -17,6 +17,8 @@ class SaudeMeta extends Model
         'sexo',
         'data_nascimento',
         'nivel_atividade',
+        'gasto_dinamico',
+        'fator_base',
         'calorias_alvo',
         'proteinas_alvo_g',
     ];
@@ -26,6 +28,8 @@ class SaudeMeta extends Model
         'data_alvo' => 'date:Y-m-d',
         'altura_cm' => 'integer',
         'data_nascimento' => 'date:Y-m-d',
+        'gasto_dinamico' => 'boolean',
+        'fator_base' => 'decimal:2',
         'calorias_alvo' => 'integer',
         'proteinas_alvo_g' => 'integer',
     ];

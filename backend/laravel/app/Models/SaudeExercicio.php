@@ -16,12 +16,15 @@ class SaudeExercicio extends Model
         'series',
         'repeticoes',
         'carga',
+        'duracao_min',
+        'intensidade',
         'observacoes',
         'posicao',
     ];
 
     protected $casts = [
         'series' => 'integer',
+        'duracao_min' => 'integer',
         'posicao' => 'integer',
     ];
 

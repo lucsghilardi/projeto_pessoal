@@ -48,6 +48,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
   const [sexo, setSexo] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [atividade, setAtividade] = useState("");
+  const [gastoDinamico, setGastoDinamico] = useState(false);
   const [caloriasAlvo, setCaloriasAlvo] = useState("");
   const [proteinasAlvo, setProteinasAlvo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -64,6 +65,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
     setSexo(meta?.sexo ?? "");
     setNascimento(meta?.data_nascimento ? meta.data_nascimento.slice(0, 10) : "");
     setAtividade(meta?.nivel_atividade ?? "sedentario");
+    setGastoDinamico(meta?.gasto_dinamico ?? false);
     setCaloriasAlvo(meta?.calorias_alvo != null ? String(meta.calorias_alvo) : "");
     setProteinasAlvo(meta?.proteinas_alvo_g != null ? String(meta.proteinas_alvo_g) : "");
     setFormError(null);
@@ -88,6 +90,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
         sexo: sexo === "M" || sexo === "F" ? sexo : null,
         data_nascimento: nascimento || null,
         nivel_atividade: (atividade || null) as SaudeNivelAtividade | null,
+        gasto_dinamico: gastoDinamico,
         calorias_alvo: caloriasAlvo.trim() ? Number(caloriasAlvo) : null,
         proteinas_alvo_g: proteinasAlvo.trim() ? Number(proteinasAlvo) : null,
       });
@@ -201,6 +204,25 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
               Sexo, nascimento, altura e atividade são usados na fórmula de
               Mifflin-St Jeor para calcular seu gasto calórico diário.
             </FieldDescription>
+
+            <Field>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={gastoDinamico}
+                  onChange={(e) => setGastoDinamico(e.target.checked)}
+                  className="mt-0.5 size-4 accent-emerald-600"
+                />
+                <span>
+                  <span className="text-sm font-medium">Usar o gasto real do exercício</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Sua meta sobe conforme você treina: o gasto do dia entra no
+                    lugar do multiplicador de atividade, que já embutia o treino.
+                    Em dia parado, a meta cai.
+                  </span>
+                </span>
+              </label>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field>

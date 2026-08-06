@@ -1,0 +1,7 @@
+# Versões fixas: a API do Garmin Connect não é oficial e a lib acompanha as
+# mudanças dela. Subir versão é decisão consciente, nunca efeito colateral de
+# um rebuild. `garminconnect` puxa `curl_cffi`, necessário para o TLS
+# impersonation do login — não remova.
+garminconnect==0.3.2
+fastapi==0.115.6
+uvicorn==0.34.0
