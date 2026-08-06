@@ -87,6 +87,20 @@ import {
     WhatsappSugestao,
     WhatsappSugestaoStatus,
 } from '@/types/Whatsapp';
+import {
+    SaudeCheckinResult,
+    SaudeExercicio,
+    SaudeExercicioPayload,
+    SaudeMeta,
+    SaudeMetaPayload,
+    SaudeOverview,
+    SaudePeso,
+    SaudePesoPayload,
+    SaudeSuplemento,
+    SaudeSuplementoPayload,
+    SaudeTreino,
+    SaudeTreinoSessao,
+} from '@/types/Saude';
 
 const API_URL = '/api/proxy';
 
@@ -943,5 +957,133 @@ export function gerarWhatsappRelatorio(tipo: WhatsappRelatorioTipo, enviar = tru
     return apiFetch<{ relatorio: WhatsappRelatorio }>('/whatsapp/relatorios/gerar', {
         method: 'POST',
         body: JSON.stringify({ tipo, enviar }),
+    });
+}
+
+// ===== Saúde =====
+
+export function getSaudeOverview(data: string) {
+    return apiFetch<SaudeOverview>(`/saude/overview?data=${data}`);
+}
+
+export function getSaudeSuplementos() {
+    return apiFetch<SaudeSuplemento[]>('/saude/suplementos');
+}
+
+export function createSaudeSuplemento(data: SaudeSuplementoPayload) {
+    return apiFetch<SaudeSuplemento>('/saude/suplementos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeSuplemento(id: number, data: SaudeSuplementoPayload) {
+    return apiFetch<SaudeSuplemento>(`/saude/suplementos/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeSuplemento(id: number) {
+    return apiFetch<{ message: string }>(`/saude/suplementos/${id}`, { method: 'DELETE' });
+}
+
+export function checkSaudeSuplemento(id: number, data: string) {
+    return apiFetch<SaudeCheckinResult>(`/saude/suplementos/${id}/checkin`, {
+        method: 'POST',
+        body: JSON.stringify({ data }),
+    });
+}
+
+export function uncheckSaudeSuplemento(id: number, data: string) {
+    return apiFetch<SaudeCheckinResult>(`/saude/suplementos/${id}/checkin?data=${data}`, {
+        method: 'DELETE',
+    });
+}
+
+export function getSaudeTreinos() {
+    return apiFetch<SaudeTreino[]>('/saude/treinos');
+}
+
+export function createSaudeExercicio(data: SaudeExercicioPayload) {
+    return apiFetch<SaudeExercicio>('/saude/exercicios', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeExercicio(id: number, data: SaudeExercicioPayload) {
+    return apiFetch<SaudeExercicio>(`/saude/exercicios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeExercicio(id: number) {
+    return apiFetch<{ message: string }>(`/saude/exercicios/${id}`, { method: 'DELETE' });
+}
+
+export function reorderSaudeExercicios(treinoId: number, exercicios: number[]) {
+    return apiFetch<{ message: string }>(`/saude/treinos/${treinoId}/exercicios/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ exercicios }),
+    });
+}
+
+export function getSaudeSessoes(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudeTreinoSessao[]>(`/saude/sessoes${qs ? `?${qs}` : ''}`);
+}
+
+export function registrarSaudeSessao(treinoId: number, data: string) {
+    return apiFetch<SaudeTreinoSessao>('/saude/sessoes', {
+        method: 'POST',
+        body: JSON.stringify({ treino_id: treinoId, data }),
+    });
+}
+
+export function deleteSaudeSessao(id: number) {
+    return apiFetch<{ message: string }>(`/saude/sessoes/${id}`, { method: 'DELETE' });
+}
+
+export function getSaudePesos(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudePeso[]>(`/saude/pesos${qs ? `?${qs}` : ''}`);
+}
+
+export function createSaudePeso(data: SaudePesoPayload) {
+    return apiFetch<SaudePeso>('/saude/pesos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudePeso(id: number, data: { peso_kg: number; observacao?: string | null }) {
+    return apiFetch<SaudePeso>(`/saude/pesos/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudePeso(id: number) {
+    return apiFetch<{ message: string }>(`/saude/pesos/${id}`, { method: 'DELETE' });
+}
+
+export function getSaudeMeta() {
+    return apiFetch<{ meta: SaudeMeta }>('/saude/meta');
+}
+
+export function saveSaudeMeta(data: SaudeMetaPayload) {
+    return apiFetch<{ meta: SaudeMeta }>('/saude/meta', {
+        method: 'PUT',
+        body: JSON.stringify(data),
     });
 }

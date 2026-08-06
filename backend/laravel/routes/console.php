@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\EnviarLembretesSuplementos;
 use App\Jobs\GerarRelatorioDiario;
 use App\Jobs\GerarResumoMatinal;
 use Illuminate\Foundation\Inspiring;
@@ -19,3 +20,8 @@ Schedule::job(new GerarResumoMatinal)
 Schedule::job(new GerarRelatorioDiario)
     ->dailyAt((string) config('whatsapp.relatorio.hora_diario'))
     ->timezone((string) config('whatsapp.relatorio.timezone'));
+
+// Módulo Saúde: lembra no WhatsApp os suplementos com horário vencido e sem
+// check-in no dia. O job calcula "hoje" em config('saude.timezone') e não
+// reenvia o mesmo lembrete (tabela saude_lembretes).
+Schedule::job(new EnviarLembretesSuplementos)->everyFiveMinutes();

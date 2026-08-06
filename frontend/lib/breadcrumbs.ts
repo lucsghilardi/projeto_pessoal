@@ -22,4 +22,7 @@ export const breadcrumbMap: Record<string, string> = {
   whatsapp: "WhatsApp",
   conversas: "Conversas",
   sugestoes: "Sugestões",
+  saude: "Saúde",
+  treinos: "Treinos",
+  peso: "Peso",
 };

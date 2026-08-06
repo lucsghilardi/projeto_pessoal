@@ -50,6 +50,11 @@ export function secondsToHours(seconds: number) {
   return Math.round((seconds / 3600) * 100) / 100;
 }
 
+/** 92.5 -> "92,5 kg" (módulo Saúde). */
+export function formatKg(value: number) {
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`;
+}
+
 /** Data de hoje (fuso local) em "YYYY-MM-DD". */
 export function todayISO() {
   const d = new Date();

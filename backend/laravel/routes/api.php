@@ -19,6 +19,14 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
+use App\Http\Controllers\Api\Saude\ExercicioController;
+use App\Http\Controllers\Api\Saude\MetaController;
+use App\Http\Controllers\Api\Saude\PesoController;
+use App\Http\Controllers\Api\Saude\SaudeOverviewController;
+use App\Http\Controllers\Api\Saude\SuplementoCheckinController;
+use App\Http\Controllers\Api\Saude\SuplementoController;
+use App\Http\Controllers\Api\Saude\TreinoController;
+use App\Http\Controllers\Api\Saude\TreinoSessaoController;
 use App\Http\Controllers\Api\Tasks\BoardController;
 use App\Http\Controllers\Api\Tasks\GamificationController;
 use App\Http\Controllers\Api\Tasks\ProjectController;
@@ -158,5 +166,35 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/relatorios', [WhatsappRelatorioController::class, 'index']);
         Route::post('/relatorios/gerar', [WhatsappRelatorioController::class, 'gerar']);
         Route::get('/relatorios/{relatorio}', [WhatsappRelatorioController::class, 'show']);
+    });
+
+    // Saúde: check-in de suplementos + treinos A/B + peso e meta (escopado pelo usuário)
+    Route::prefix('saude')->group(function () {
+        Route::get('/overview', [SaudeOverviewController::class, 'overview']);
+
+        Route::post('/suplementos/{suplemento}/checkin', [SuplementoCheckinController::class, 'store']);
+        Route::delete('/suplementos/{suplemento}/checkin', [SuplementoCheckinController::class, 'destroy']);
+        Route::apiResource('suplementos', SuplementoController::class)
+            ->parameters(['suplementos' => 'suplemento'])
+            ->except(['show', 'create', 'edit']);
+
+        Route::post('/treinos/{treino}/exercicios/reorder', [ExercicioController::class, 'reorder']);
+        Route::apiResource('treinos', TreinoController::class)
+            ->parameters(['treinos' => 'treino'])
+            ->except(['show', 'create', 'edit']);
+        Route::apiResource('exercicios', ExercicioController::class)
+            ->parameters(['exercicios' => 'exercicio'])
+            ->only(['store', 'update', 'destroy']);
+
+        Route::get('/sessoes', [TreinoSessaoController::class, 'index']);
+        Route::post('/sessoes', [TreinoSessaoController::class, 'store']);
+        Route::delete('/sessoes/{sessao}', [TreinoSessaoController::class, 'destroy']);
+
+        Route::apiResource('pesos', PesoController::class)
+            ->parameters(['pesos' => 'peso'])
+            ->except(['show', 'create', 'edit']);
+
+        Route::get('/meta', [MetaController::class, 'show']);
+        Route::put('/meta', [MetaController::class, 'update']);
     });
 });
