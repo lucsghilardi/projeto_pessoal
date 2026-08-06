@@ -21,7 +21,9 @@ use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
 use App\Http\Controllers\Api\Saude\ExercicioController;
 use App\Http\Controllers\Api\Saude\MetaController;
+use App\Http\Controllers\Api\Saude\NutricaoController;
 use App\Http\Controllers\Api\Saude\PesoController;
+use App\Http\Controllers\Api\Saude\RefeicaoController;
 use App\Http\Controllers\Api\Saude\SaudeOverviewController;
 use App\Http\Controllers\Api\Saude\SuplementoCheckinController;
 use App\Http\Controllers\Api\Saude\SuplementoController;
@@ -196,5 +198,13 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
 
         Route::get('/meta', [MetaController::class, 'show']);
         Route::put('/meta', [MetaController::class, 'update']);
+
+        // Diário alimentar: refeições (foto via WhatsApp ou manual) + metas do dia
+        Route::get('/nutricao', [NutricaoController::class, 'overview']);
+        Route::get('/nutricao/projecao', [NutricaoController::class, 'projecao']);
+        Route::get('/refeicoes/{refeicao}/foto', [RefeicaoController::class, 'foto']);
+        Route::apiResource('refeicoes', RefeicaoController::class)
+            ->parameters(['refeicoes' => 'refeicao'])
+            ->except(['show', 'create', 'edit']);
     });
 });

@@ -17,12 +17,16 @@ class WhatsappInstancia extends Model
         'phone',
         'status',
         'gtd_ativo',
+        'calorias_foto_ativo',
+        'calorias_texto_ia',
         'relatorio_diario_ativo',
         'resumo_matinal_ativo',
     ];
 
     protected $casts = [
         'gtd_ativo' => 'boolean',
+        'calorias_foto_ativo' => 'boolean',
+        'calorias_texto_ia' => 'boolean',
         'relatorio_diario_ativo' => 'boolean',
         'resumo_matinal_ativo' => 'boolean',
     ];

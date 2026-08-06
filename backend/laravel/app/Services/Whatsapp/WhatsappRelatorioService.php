@@ -7,7 +7,9 @@ use App\Models\WhatsappChat;
 use App\Models\WhatsappInstancia;
 use App\Models\WhatsappRelatorio;
 use App\Models\WhatsappSugestao;
+use App\Services\Saude\SaudeNutricaoService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -24,6 +26,7 @@ class WhatsappRelatorioService
     public function __construct(
         private WhatsappAnaliseService $analise,
         private WhatsappSender $sender,
+        private SaudeNutricaoService $nutricao,
     ) {
     }
 
@@ -54,6 +57,14 @@ class WhatsappRelatorioService
         $tz = config('whatsapp.relatorio.timezone');
         $hoje = now($tz)->toDateString();
         $texto = $this->montarTextoWhatsapp($dados, $tipo);
+
+        // Briefing matinal fecha com o resumo nutricional (módulo Saúde).
+        if ($tipo === 'matinal') {
+            $secaoNutricao = $this->secaoNutricao($user);
+            if ($secaoNutricao !== null) {
+                $texto .= "\n\n".$secaoNutricao;
+            }
+        }
 
         $relatorio = DB::transaction(function () use ($user, $tipo, $hoje, $dados, $texto, $conversas) {
             $relatorio = WhatsappRelatorio::updateOrCreate(
@@ -230,5 +241,72 @@ class WhatsappRelatorioService
         }
 
         return implode("\n", $linhas);
+    }
+
+    /**
+     * Fechamento nutricional do briefing matinal: ontem vs meta, meta de hoje e
+     * projeção de peso. Null quando não há nada a mostrar; erro aqui nunca
+     * derruba o briefing.
+     */
+    private function secaoNutricao(User $user): ?string
+    {
+        try {
+            $tz = config('saude.timezone');
+            $ontem = now($tz)->subDay();
+            $resumo = $this->nutricao->resumoDia($user, $ontem->toDateString());
+
+            $temRefeicoes = $resumo['refeicoes']->isNotEmpty();
+            if (! $temRefeicoes && ! $resumo['perfil_completo']) {
+                return null;
+            }
+
+            $kcal = fn (int $v): string => number_format($v, 0, ',', '.');
+            $g = function (float $v): string {
+                return number_format($v, $v == floor($v) ? 0 : 1, ',', '.').'g';
+            };
+
+            $consumido = $resumo['consumido'];
+            $metas = $resumo['metas'];
+
+            $linhas = ['🍎 *Nutrição — ontem ('.$ontem->format('d/m').'):*'];
+
+            if ($temRefeicoes) {
+                $linha = $kcal($consumido['calorias']).' kcal';
+                if ($metas['calorias'] !== null) {
+                    $saldo = $metas['calorias'] - $consumido['calorias'];
+                    $linha .= ' de '.$kcal($metas['calorias']);
+                    $linha .= $saldo >= 0
+                        ? ' (sobraram '.$kcal($saldo).')'
+                        : ' (estourou '.$kcal(abs($saldo)).')';
+                }
+                if ($metas['proteinas_g'] !== null) {
+                    $linha .= ' · Proteínas '.$g((float) $consumido['proteinas_g']).' de '.$g((float) $metas['proteinas_g']);
+                }
+                $linhas[] = $linha;
+            } else {
+                $linhas[] = 'Nenhuma refeição registrada ontem — manda a foto do prato que eu conto as calorias. 📸';
+            }
+
+            if ($metas['calorias'] !== null) {
+                $meta = '🎯 Hoje: até '.$kcal($metas['calorias']).' kcal';
+                if ($metas['proteinas_g'] !== null) {
+                    $meta .= ' e '.$g((float) $metas['proteinas_g']).' de proteína';
+                }
+                $linhas[] = $meta;
+            }
+
+            $projecao = $this->nutricao->projecao($user);
+            if ($projecao !== null && $projecao['peso_meta'] !== null && $projecao['data_prevista_meta'] !== null) {
+                $prevista = substr($projecao['data_prevista_meta'], 8, 2).'/'.substr($projecao['data_prevista_meta'], 5, 2);
+                $ritmo = number_format(abs((float) $projecao['ritmo_real_kg_semana']), 2, ',', '.');
+                $linhas[] = "⚖️ No ritmo atual ({$ritmo} kg/semana) você chega aos ".number_format((float) $projecao['peso_meta'], 1, ',', '.')." kg em {$prevista}.";
+            }
+
+            return implode("\n", $linhas);
+        } catch (\Throwable $e) {
+            Log::warning('[whatsapp:relatorio] seção de nutrição falhou: '.$e->getMessage());
+
+            return null;
+        }
     }
 }

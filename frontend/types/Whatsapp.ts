@@ -10,6 +10,8 @@ export interface WhatsappInstancia {
   phone?: string | null;
   status: WhatsappInstanciaStatus;
   gtd_ativo: boolean;
+  calorias_foto_ativo: boolean;
+  calorias_texto_ia: boolean;
   relatorio_diario_ativo: boolean;
   resumo_matinal_ativo: boolean;
   created_at?: string;
@@ -19,6 +21,8 @@ export interface WhatsappInstancia {
 export interface WhatsappInstanciaPayload {
   apelido?: string | null;
   gtd_ativo?: boolean;
+  calorias_foto_ativo?: boolean;
+  calorias_texto_ia?: boolean;
   relatorio_diario_ativo?: boolean;
   resumo_matinal_ativo?: boolean;
 }

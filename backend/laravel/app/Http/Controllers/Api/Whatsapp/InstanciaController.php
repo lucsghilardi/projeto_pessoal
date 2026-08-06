@@ -68,6 +68,8 @@ class InstanciaController extends Controller
         $data = $request->validate([
             'apelido' => ['nullable', 'string', 'max:60'],
             'gtd_ativo' => ['sometimes', 'boolean'],
+            'calorias_foto_ativo' => ['sometimes', 'boolean'],
+            'calorias_texto_ia' => ['sometimes', 'boolean'],
             'relatorio_diario_ativo' => ['sometimes', 'boolean'],
             'resumo_matinal_ativo' => ['sometimes', 'boolean'],
         ]);

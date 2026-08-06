@@ -93,9 +93,13 @@ import {
     SaudeExercicioPayload,
     SaudeMeta,
     SaudeMetaPayload,
+    SaudeNutricaoOverview,
+    SaudeNutricaoProjecao,
     SaudeOverview,
     SaudePeso,
     SaudePesoPayload,
+    SaudeRefeicao,
+    SaudeRefeicaoPayload,
     SaudeSuplemento,
     SaudeSuplementoPayload,
     SaudeTreino,
@@ -1086,4 +1090,44 @@ export function saveSaudeMeta(data: SaudeMetaPayload) {
         method: 'PUT',
         body: JSON.stringify(data),
     });
+}
+
+export function getSaudeNutricao(data?: string) {
+    return apiFetch<SaudeNutricaoOverview>(`/saude/nutricao${data ? `?data=${data}` : ''}`);
+}
+
+export function getSaudeNutricaoProjecao() {
+    return apiFetch<{ projecao: SaudeNutricaoProjecao }>('/saude/nutricao/projecao');
+}
+
+export function getSaudeRefeicoes(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudeRefeicao[]>(`/saude/refeicoes${qs ? `?${qs}` : ''}`);
+}
+
+export function createSaudeRefeicao(data: SaudeRefeicaoPayload) {
+    return apiFetch<SaudeRefeicao>('/saude/refeicoes', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeRefeicao(id: number, data: SaudeRefeicaoPayload) {
+    return apiFetch<SaudeRefeicao>(`/saude/refeicoes/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeRefeicao(id: number) {
+    return apiFetch<{ message: string }>(`/saude/refeicoes/${id}`, { method: 'DELETE' });
+}
+
+/** URL da foto original da refeição (servida pelo proxy autenticado). */
+export function saudeRefeicaoFotoUrl(id: number) {
+    return `${API_URL}/saude/refeicoes/${id}/foto`;
 }

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, Boxes, CircleDollarSign, CreditCard, Dumbbell, Gem, Handshake, HeartPulse, KanbanSquare, Landmark, LayoutDashboard, Lightbulb, MessageCircle, MessagesSquare, Pill, Scale, ScanLine, ScrollText, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Banknote, BarChart3, Boxes, CircleDollarSign, CreditCard, Dumbbell, Flame, Gem, Handshake, HeartPulse, KanbanSquare, Landmark, LayoutDashboard, Lightbulb, MessageCircle, MessagesSquare, Pill, Scale, ScanLine, ScrollText, Tags, Target, TrendingUp, Trophy, Users, Wallet } from "lucide-react";
 
 import { UserRole } from "@/types/User";
 
@@ -89,6 +89,7 @@ export const dashboardNav: DashboardNavEntry[] = [
     icon: HeartPulse,
     items: [
       { title: "Check-in do dia", url: "/dashboard/saude", roles: ALL_ROLES, icon: Pill },
+      { title: "Calorias", url: "/dashboard/saude/calorias", roles: ALL_ROLES, icon: Flame },
       { title: "Treinos", url: "/dashboard/saude/treinos", roles: ALL_ROLES, icon: Dumbbell },
       { title: "Peso", url: "/dashboard/saude/peso", roles: ALL_ROLES, icon: Scale },
     ],

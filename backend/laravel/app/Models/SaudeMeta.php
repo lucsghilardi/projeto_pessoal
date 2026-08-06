@@ -14,12 +14,20 @@ class SaudeMeta extends Model
         'peso_meta_kg',
         'data_alvo',
         'altura_cm',
+        'sexo',
+        'data_nascimento',
+        'nivel_atividade',
+        'calorias_alvo',
+        'proteinas_alvo_g',
     ];
 
     protected $casts = [
         'peso_meta_kg' => 'decimal:2',
         'data_alvo' => 'date:Y-m-d',
         'altura_cm' => 'integer',
+        'data_nascimento' => 'date:Y-m-d',
+        'calorias_alvo' => 'integer',
+        'proteinas_alvo_g' => 'integer',
     ];
 
     public function user(): BelongsTo

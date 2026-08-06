@@ -5,10 +5,17 @@ import { useEffect, useState } from "react";
 import { appToast } from "@/lib/toast";
 import { saveSaudeMeta } from "@/services/api";
 import { ApiError } from "@/services/apiError";
-import type { SaudeMeta } from "@/types/Saude";
+import type { SaudeMeta, SaudeNivelAtividade } from "@/types/Saude";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +25,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+
+const NIVEIS_ATIVIDADE: Array<{ value: SaudeNivelAtividade; label: string }> = [
+  { value: "sedentario", label: "Sedentário — pouco ou nenhum exercício" },
+  { value: "leve", label: "Leve — exercício 1-3x por semana" },
+  { value: "moderado", label: "Moderado — exercício 3-5x por semana" },
+  { value: "intenso", label: "Intenso — exercício 6-7x por semana" },
+  { value: "atleta", label: "Atleta — treino pesado diário" },
+];
 
 type Props = {
   open: boolean;
@@ -30,6 +45,11 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
   const [pesoMeta, setPesoMeta] = useState("");
   const [dataAlvo, setDataAlvo] = useState("");
   const [altura, setAltura] = useState("");
+  const [sexo, setSexo] = useState("");
+  const [nascimento, setNascimento] = useState("");
+  const [atividade, setAtividade] = useState("");
+  const [caloriasAlvo, setCaloriasAlvo] = useState("");
+  const [proteinasAlvo, setProteinasAlvo] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -41,6 +61,11 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
     setPesoMeta(meta?.peso_meta_kg ?? "");
     setDataAlvo(meta?.data_alvo ? meta.data_alvo.slice(0, 10) : "");
     setAltura(meta?.altura_cm != null ? String(meta.altura_cm) : "");
+    setSexo(meta?.sexo ?? "");
+    setNascimento(meta?.data_nascimento ? meta.data_nascimento.slice(0, 10) : "");
+    setAtividade(meta?.nivel_atividade ?? "sedentario");
+    setCaloriasAlvo(meta?.calorias_alvo != null ? String(meta.calorias_alvo) : "");
+    setProteinasAlvo(meta?.proteinas_alvo_g != null ? String(meta.proteinas_alvo_g) : "");
     setFormError(null);
   }, [open, meta]);
 
@@ -60,6 +85,11 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
         peso_meta_kg: pesoValor,
         data_alvo: dataAlvo || null,
         altura_cm: altura.trim() ? Number(altura) : null,
+        sexo: sexo === "M" || sexo === "F" ? sexo : null,
+        data_nascimento: nascimento || null,
+        nivel_atividade: (atividade || null) as SaudeNivelAtividade | null,
+        calorias_alvo: caloriasAlvo.trim() ? Number(caloriasAlvo) : null,
+        proteinas_alvo_g: proteinasAlvo.trim() ? Number(proteinasAlvo) : null,
       });
       appToast.success("Meta salva.");
       onOpenChange(false);
@@ -78,11 +108,12 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Meta de peso</SheetTitle>
+          <SheetTitle>Meta e perfil</SheetTitle>
           <SheetDescription>
-            A meta vira a linha de referência do gráfico de evolução.
+            A meta vira a linha de referência dos gráficos; o perfil alimenta o
+            cálculo de calorias (TMB/TDEE) e a projeção de emagrecimento.
           </SheetDescription>
         </SheetHeader>
 
@@ -113,21 +144,94 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
               </Field>
             </div>
 
-            <Field>
-              <FieldLabel htmlFor="meta-altura">Altura (cm)</FieldLabel>
-              <Input
-                id="meta-altura"
-                type="number"
-                min={100}
-                max={250}
-                value={altura}
-                onChange={(e) => setAltura(e.target.value)}
-                placeholder="178"
-              />
-              <FieldDescription>
-                Usada só para calcular o IMC nos indicadores.
-              </FieldDescription>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel htmlFor="meta-altura">Altura (cm)</FieldLabel>
+                <Input
+                  id="meta-altura"
+                  type="number"
+                  min={100}
+                  max={250}
+                  value={altura}
+                  onChange={(e) => setAltura(e.target.value)}
+                  placeholder="178"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="meta-sexo">Sexo</FieldLabel>
+                <Select value={sexo} onValueChange={setSexo}>
+                  <SelectTrigger id="meta-sexo" className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M">Masculino</SelectItem>
+                    <SelectItem value="F">Feminino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel htmlFor="meta-nascimento">Nascimento</FieldLabel>
+                <Input
+                  id="meta-nascimento"
+                  type="date"
+                  value={nascimento}
+                  onChange={(e) => setNascimento(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="meta-atividade">Atividade</FieldLabel>
+                <Select value={atividade} onValueChange={setAtividade}>
+                  <SelectTrigger id="meta-atividade" className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NIVEIS_ATIVIDADE.map((nivel) => (
+                      <SelectItem key={nivel.value} value={nivel.value}>
+                        {nivel.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <FieldDescription>
+              Sexo, nascimento, altura e atividade são usados na fórmula de
+              Mifflin-St Jeor para calcular seu gasto calórico diário.
+            </FieldDescription>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel htmlFor="meta-calorias">Calorias/dia</FieldLabel>
+                <Input
+                  id="meta-calorias"
+                  type="number"
+                  min={800}
+                  max={6000}
+                  value={caloriasAlvo}
+                  onChange={(e) => setCaloriasAlvo(e.target.value)}
+                  placeholder="Automático"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="meta-proteinas">Proteína (g/dia)</FieldLabel>
+                <Input
+                  id="meta-proteinas"
+                  type="number"
+                  min={20}
+                  max={400}
+                  value={proteinasAlvo}
+                  onChange={(e) => setProteinasAlvo(e.target.value)}
+                  placeholder="Automático"
+                />
+              </Field>
+            </div>
+            <FieldDescription>
+              Deixe em branco para o cálculo automático: déficit seguro derivado
+              da sua meta e 1,8g de proteína por kg.
+            </FieldDescription>
 
             <FieldError>{formError}</FieldError>
           </FieldGroup>

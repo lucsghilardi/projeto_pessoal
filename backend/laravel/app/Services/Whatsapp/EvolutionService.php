@@ -70,7 +70,11 @@ class EvolutionService
                 'enabled' => true,
                 'url' => $url,
                 'webhookByEvents' => false,
-                'webhookBase64' => false,
+                // Mídia chega em base64 no payload (data.message.base64) — usado
+                // pelo diário alimentar (foto de prato). A Evolution roda com
+                // DATABASE_SAVE_DATA_NEW_MESSAGE=false, então baixar depois via
+                // getBase64FromMediaMessage não funcionaria.
+                'webhookBase64' => true,
                 'events' => $events,
             ],
         ]);

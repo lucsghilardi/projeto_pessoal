@@ -23,6 +23,7 @@ export const breadcrumbMap: Record<string, string> = {
   conversas: "Conversas",
   sugestoes: "Sugestões",
   saude: "Saúde",
+  calorias: "Calorias",
   treinos: "Treinos",
   peso: "Peso",
 };

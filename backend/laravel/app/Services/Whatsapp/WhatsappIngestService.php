@@ -3,15 +3,19 @@
 namespace App\Services\Whatsapp;
 
 use App\Jobs\ProcessarInboxGtd;
+use App\Jobs\ProcessarRefeicaoWhatsapp;
 use App\Models\WhatsappChat;
 use App\Models\WhatsappInstancia;
 use App\Models\WhatsappMensagem;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Grava no banco os eventos normalizados do webhook da Evolution. Porte enxuto
  * do ingest do Nitrogym: sem multi-grupo, sem campanhas, sem atendente virtual.
- * Extra deste projeto: mensagens enviadas para si mesmo viram tarefas (GTD).
+ * Extras deste projeto: mensagens enviadas para si mesmo viram tarefas (GTD)
+ * e fotos de prato no mesmo chat viram refeições do diário alimentar (Saúde).
  */
 class WhatsappIngestService
 {
@@ -60,6 +64,11 @@ class WhatsappIngestService
         $fromMe = (bool) ($norm['fromMe'] ?? false);
         $momment = (int) ($norm['momment'] ?? 0);
 
+        // Base64 da mídia (webhookBase64): usado só para salvar a foto de
+        // refeição — nunca vai para o raw_payload (bloat no banco).
+        $mediaBase64 = (string) ($norm['image']['base64'] ?? '');
+        unset($norm['image']['base64']);
+
         $mensagem = WhatsappMensagem::create([
             'chat_id' => $chat->id,
             'instancia_id' => $instancia->id,
@@ -83,6 +92,7 @@ class WhatsappIngestService
         $this->atualizarResumoDoChat($chat, $mensagem);
 
         $this->detectarInboxGtd($chat, $mensagem, $instancia);
+        $this->detectarRefeicao($chat, $mensagem, $instancia, $mediaBase64);
     }
 
     /**
@@ -191,15 +201,7 @@ class WhatsappIngestService
      */
     private function detectarInboxGtd(WhatsappChat $chat, WhatsappMensagem $mensagem, WhatsappInstancia $instancia): void
     {
-        if (! $instancia->gtd_ativo || ! $mensagem->from_me || $chat->is_group) {
-            return;
-        }
-
-        $ehChatComigo = $chat->phone !== null
-            && $instancia->phone !== null
-            && $chat->phone === $instancia->phone;
-
-        if (! $ehChatComigo) {
+        if (! $instancia->gtd_ativo || ! $mensagem->from_me || ! $this->ehChatComigo($chat, $instancia)) {
             return;
         }
 
@@ -209,5 +211,53 @@ class WhatsappIngestService
         }
 
         ProcessarInboxGtd::dispatch($mensagem->id);
+    }
+
+    /**
+     * Diário alimentar: foto enviada para si mesmo vira refeição analisada por
+     * IA. A foto chega em base64 no webhook (webhookBase64) e é salva em disco
+     * antes de despachar o job; imagens de outros chats são descartadas.
+     */
+    private function detectarRefeicao(WhatsappChat $chat, WhatsappMensagem $mensagem, WhatsappInstancia $instancia, string $mediaBase64): void
+    {
+        if (! $instancia->calorias_foto_ativo || ! $mensagem->from_me || ! $this->ehChatComigo($chat, $instancia)) {
+            return;
+        }
+
+        if ($mensagem->tipo !== 'image') {
+            return;
+        }
+
+        if ($mediaBase64 === '') {
+            Log::warning('[whatsapp:calorias] imagem sem base64 no webhook — reconfigure o webhook da instância para aplicar webhookBase64.');
+
+            return;
+        }
+
+        $binario = base64_decode($mediaBase64, true);
+        if ($binario === false || $binario === '') {
+            Log::warning("[whatsapp:calorias] base64 inválido na mensagem {$mensagem->id}.");
+
+            return;
+        }
+
+        $extensao = match (strtolower((string) $mensagem->media_mime)) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            default => 'jpg',
+        };
+        $path = "saude/refeicoes/{$instancia->user_id}/".Str::uuid().'.'.$extensao;
+        Storage::disk('local')->put($path, $binario);
+
+        ProcessarRefeicaoWhatsapp::dispatch($mensagem->id, $path);
+    }
+
+    private function ehChatComigo(WhatsappChat $chat, WhatsappInstancia $instancia): bool
+    {
+        return ! $chat->is_group
+            && $chat->phone !== null
+            && $instancia->phone !== null
+            && $chat->phone === $instancia->phone;
     }
 }

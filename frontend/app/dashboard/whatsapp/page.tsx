@@ -200,7 +200,15 @@ export default function WhatsappOverviewPage() {
     }
   }
 
-  async function handleToggle(campo: "gtd_ativo" | "relatorio_diario_ativo" | "resumo_matinal_ativo", valor: boolean) {
+  async function handleToggle(
+    campo:
+      | "gtd_ativo"
+      | "calorias_foto_ativo"
+      | "calorias_texto_ia"
+      | "relatorio_diario_ativo"
+      | "resumo_matinal_ativo",
+    valor: boolean,
+  ) {
     if (!instancia) return;
     const anterior = instancia;
     setInstancia({ ...instancia, [campo]: valor });
@@ -343,6 +351,18 @@ export default function WhatsappOverviewPage() {
                   description="Mensagem enviada para você mesmo vira tarefa no kanban automaticamente."
                   checked={instancia.gtd_ativo}
                   onChange={(v) => handleToggle("gtd_ativo", v)}
+                />
+                <ToggleRow
+                  label="Calorias por foto"
+                  description="Foto de prato enviada para você mesmo vira refeição no diário alimentar, com resposta das calorias do dia."
+                  checked={instancia.calorias_foto_ativo}
+                  onChange={(v) => handleToggle("calorias_foto_ativo", v)}
+                />
+                <ToggleRow
+                  label="IA decide: comida ou tarefa"
+                  description="Em mensagens de texto para você mesmo, a IA identifica se é uma refeição ('2 ovos e café') ou uma tarefa. Desligado, todo texto vira tarefa."
+                  checked={instancia.calorias_texto_ia}
+                  onChange={(v) => handleToggle("calorias_texto_ia", v)}
                 />
               </CardContent>
             </Card>

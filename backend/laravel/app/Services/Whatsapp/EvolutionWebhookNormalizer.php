@@ -80,6 +80,9 @@ class EvolutionWebhookNormalizer
                 'imageUrl' => (string) ($img['url'] ?? ''),
                 'caption' => (string) ($img['caption'] ?? ''),
                 'mimeType' => (string) ($img['mimetype'] ?? $img['mime_type'] ?? 'image/jpeg'),
+                // Presente quando o webhook está com webhookBase64 habilitado.
+                // O ingest usa para salvar a foto e NUNCA persiste no banco.
+                'base64' => (string) ($message['base64'] ?? ''),
             ];
         } elseif (isset($message['audioMessage'])) {
             $aud = (array) $message['audioMessage'];
