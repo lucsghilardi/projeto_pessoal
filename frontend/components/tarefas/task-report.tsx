@@ -805,7 +805,11 @@ export function TaskReport() {
                                       className="h-7 gap-1 border-none bg-transparent px-1.5 shadow-none"
                                       aria-label="Projeto"
                                     >
-                                      <div className="flex items-center gap-2">
+                                      {/* O conteúdo custom precisa ficar dentro do
+                                          SelectValue: o position="item-aligned" do
+                                          Radix só posiciona o menu se o value node
+                                          existir. */}
+                                      <SelectValue>
                                         <span
                                           className="size-2.5 shrink-0 rounded-full"
                                           style={{
@@ -816,7 +820,7 @@ export function TaskReport() {
                                         <span className="max-w-32 truncate text-sm text-muted-foreground">
                                           {task.project?.name ?? "—"}
                                         </span>
-                                      </div>
+                                      </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                       {projects.map((project) => (
@@ -846,11 +850,13 @@ export function TaskReport() {
                                       className="h-7 gap-1 border-none bg-transparent px-1.5 shadow-none"
                                       aria-label="Prioridade"
                                     >
-                                      <span
-                                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_META[task.priority].badge}`}
-                                      >
-                                        {PRIORITY_META[task.priority].label}
-                                      </span>
+                                      <SelectValue>
+                                        <span
+                                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_META[task.priority].badge}`}
+                                        >
+                                          {PRIORITY_META[task.priority].label}
+                                        </span>
+                                      </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                       {PRIORITY_OPTIONS.map((priority) => (
