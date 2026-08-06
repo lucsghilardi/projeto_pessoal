@@ -69,12 +69,14 @@ class EvolutionService
             'webhook' => [
                 'enabled' => true,
                 'url' => $url,
-                'webhookByEvents' => false,
+                // Evolution v2 espera 'byEvents'/'base64' — os nomes da v1
+                // ('webhookByEvents'/'webhookBase64') são IGNORADOS em silêncio.
+                'byEvents' => false,
                 // Mídia chega em base64 no payload (data.message.base64) — usado
                 // pelo diário alimentar (foto de prato). A Evolution roda com
                 // DATABASE_SAVE_DATA_NEW_MESSAGE=false, então baixar depois via
                 // getBase64FromMediaMessage não funcionaria.
-                'webhookBase64' => true,
+                'base64' => true,
                 'events' => $events,
             ],
         ]);
