@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Sparkles,
+  Target,
+  Trash2,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -30,7 +39,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDate, formatFullDate, formatKg, toNumber } from "@/lib/format";
+import { Input } from "@/components/ui/input";
+import {
+  formatDate,
+  formatFullDate,
+  formatKg,
+  shiftDay,
+  todayISO,
+  toNumber,
+} from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -84,10 +101,15 @@ export default function CaloriasPage() {
   const [refeicaoSheetOpen, setRefeicaoSheetOpen] = useState(false);
   const [metaSheetOpen, setMetaSheetOpen] = useState(false);
   const [editing, setEditing] = useState<SaudeRefeicao | null>(null);
+  const [dia, setDia] = useState(todayISO());
+  const [recarregando, setRecarregando] = useState(false);
+
+  const hoje = todayISO();
+  const ehHoje = dia === hoje;
 
   const load = useCallback(async () => {
     const [overviewData, projecaoData, metaData] = await Promise.all([
-      getSaudeNutricao(),
+      getSaudeNutricao(dia),
       getSaudeNutricaoProjecao(),
       getSaudeMeta(),
     ]);
@@ -95,7 +117,7 @@ export default function CaloriasPage() {
     setOverview(overviewData);
     setProjecao(projecaoData.projecao);
     setMeta(metaData.meta);
-  }, []);
+  }, [dia]);
 
   // Puxa as atividades novas do relógio ao abrir a tela — o gasto do exercício
   // muda a meta do dia, então esta página é a mais interessada no sync.
@@ -103,6 +125,7 @@ export default function CaloriasPage() {
 
   useEffect(() => {
     let mounted = true;
+    setRecarregando(true);
 
     (async () => {
       try {
@@ -116,6 +139,7 @@ export default function CaloriasPage() {
       } finally {
         if (mounted) {
           setLoading(false);
+          setRecarregando(false);
         }
       }
     })();
@@ -209,6 +233,41 @@ export default function CaloriasPage() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Dia anterior"
+          onClick={() => setDia((atual) => shiftDay(atual, -1))}
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <Input
+          type="date"
+          className="w-auto"
+          value={dia}
+          max={hoje}
+          onChange={(event) => setDia(event.target.value || hoje)}
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Próximo dia"
+          disabled={ehHoje}
+          onClick={() => setDia((atual) => shiftDay(atual, 1))}
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+        {!ehHoje ? (
+          <Button variant="ghost" size="sm" onClick={() => setDia(hoje)}>
+            Hoje
+          </Button>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
+          {recarregando ? "Carregando..." : formatFullDate(dia)}
+        </p>
+      </div>
+
       {overview && !overview.perfil_completo ? (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -226,11 +285,17 @@ export default function CaloriasPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard
-          label={metaCalorias !== null ? `Consumido de ${kcal(metaCalorias)} kcal` : "Consumido hoje"}
+          label={
+            metaCalorias !== null
+              ? `Consumido de ${kcal(metaCalorias)} kcal`
+              : ehHoje
+                ? "Consumido hoje"
+                : "Consumido no dia"
+          }
           value={`${kcal(consumido)} kcal`}
         />
         <SummaryCard
-          label="Restante hoje"
+          label={ehHoje ? "Restante hoje" : "Restante no dia"}
           value={
             restante === null
               ? "—"
@@ -250,7 +315,9 @@ export default function CaloriasPage() {
           label={
             overview?.metas.proteinas_g != null
               ? `Proteínas de ${gramas(overview.metas.proteinas_g)}`
-              : "Proteínas hoje"
+              : ehHoje
+                ? "Proteínas hoje"
+                : "Proteínas no dia"
           }
           value={gramas(overview?.consumido.proteinas_g ?? 0)}
           accentClass={
@@ -299,11 +366,13 @@ export default function CaloriasPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Refeições de hoje</CardTitle>
+          <CardTitle>
+            {ehHoje ? "Refeições de hoje" : `Refeições de ${formatFullDate(dia)}`}
+          </CardTitle>
           <CardDescription>
             {overview && overview.refeicoes.length > 0
               ? `${overview.refeicoes.length} refeição(ões) registrada(s).`
-              : "Nada registrado hoje. Mande a foto do prato no WhatsApp ou registre manualmente."}
+              : `Nada registrado ${ehHoje ? "hoje" : "neste dia"}. Mande a foto do prato no WhatsApp ou registre manualmente.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -382,9 +451,10 @@ export default function CaloriasPage() {
           <CardHeader>
             <CardTitle>Últimos 14 dias</CardTitle>
             <CardDescription>
+              Clique em um dia para abri-lo acima
               {metaCalorias !== null
-                ? `Calorias por dia — a linha tracejada marca a meta de ${kcal(metaCalorias)} kcal.`
-                : "Calorias consumidas por dia."}
+                ? ` — a linha tracejada marca a meta de ${kcal(metaCalorias)} kcal.`
+                : "."}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-64">
@@ -392,6 +462,13 @@ export default function CaloriasPage() {
               <BarChart
                 data={historicoChart}
                 margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+                className="cursor-pointer"
+                onClick={(state) => {
+                  const clicado = state?.activeLabel;
+                  if (typeof clicado === "string" && clicado.length > 0) {
+                    setDia(clicado.slice(0, 10));
+                  }
+                }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -411,16 +488,23 @@ export default function CaloriasPage() {
                   labelFormatter={(label) => formatFullDate(String(label))}
                 />
                 <Bar dataKey="calorias" radius={[4, 4, 0, 0]}>
-                  {historicoChart.map((dia) => (
-                    <Cell
-                      key={dia.data}
-                      fill={
-                        metaCalorias !== null && dia.calorias > metaCalorias
-                          ? "#ef4444"
-                          : "#10b981"
-                      }
-                    />
-                  ))}
+                  {historicoChart.map((ponto) => {
+                    const selecionado = ponto.data.slice(0, 10) === dia;
+
+                    return (
+                      <Cell
+                        key={ponto.data}
+                        fill={
+                          metaCalorias !== null && ponto.calorias > metaCalorias
+                            ? "#ef4444"
+                            : "#10b981"
+                        }
+                        fillOpacity={selecionado ? 1 : 0.45}
+                        stroke={selecionado ? "#0f172a" : undefined}
+                        strokeWidth={selecionado ? 1 : 0}
+                      />
+                    );
+                  })}
                 </Bar>
                 {metaCalorias !== null ? (
                   <ReferenceLine y={metaCalorias} stroke="#f59e0b" strokeDasharray="6 4" />
@@ -511,6 +595,7 @@ export default function CaloriasPage() {
         open={refeicaoSheetOpen}
         onOpenChange={setRefeicaoSheetOpen}
         editing={editing}
+        defaultData={dia}
         onSaved={load}
       />
       <MetaSheet

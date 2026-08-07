@@ -80,6 +80,12 @@ class WhatsappRelatorioService
             $chatIdsValidos = array_column($conversas, 'chat_id');
             foreach ($dados['sugestoes_tarefas'] as $sugestao) {
                 $chatId = $sugestao['chat_id'] ?? null;
+
+                // O que já foi descartado não volta no relatório do dia seguinte.
+                if (WhatsappSugestao::foiDescartada($user->id, $chatId, $sugestao['titulo'])) {
+                    continue;
+                }
+
                 WhatsappSugestao::create([
                     'user_id' => $user->id,
                     'chat_id' => in_array($chatId, $chatIdsValidos, true) ? $chatId : null,

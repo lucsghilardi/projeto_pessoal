@@ -74,10 +74,18 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   editing: SaudeRefeicao | null;
   onSaved: () => void;
+  /** Dia sugerido para um registro novo — o dia que a tela está exibindo. */
+  defaultData?: string;
 };
 
-export function RefeicaoSheet({ open, onOpenChange, editing, onSaved }: Props) {
-  const [data, setData] = useState(todayISO());
+export function RefeicaoSheet({
+  open,
+  onOpenChange,
+  editing,
+  onSaved,
+  defaultData,
+}: Props) {
+  const [data, setData] = useState(defaultData ?? todayISO());
   const [horario, setHorario] = useState(horaAgora());
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<string>("outro");
@@ -107,7 +115,7 @@ export function RefeicaoSheet({ open, onOpenChange, editing, onSaved }: Props) {
       return;
     }
 
-    setData(editing ? editing.data.slice(0, 10) : todayISO());
+    setData(editing ? editing.data.slice(0, 10) : (defaultData ?? todayISO()));
     setHorario(editing ? editing.horario.slice(0, 5) : horaAgora());
     setNome(editing?.nome ?? "");
     setTipo(editing?.tipo ?? "outro");
@@ -122,7 +130,7 @@ export function RefeicaoSheet({ open, onOpenChange, editing, onSaved }: Props) {
     setFoto(null);
     setFotoPreview(null);
     setRemoverFoto(false);
-  }, [open, editing]);
+  }, [open, editing, defaultData]);
 
   // A URL do preview é criada na hora; sem revoke ela vaza a cada troca de foto.
   useEffect(() => {

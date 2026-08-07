@@ -71,6 +71,11 @@ class AnaliseController extends Controller
 
         $sugestoes = [];
         foreach ($resultado['sugestoes_tarefas'] as $s) {
+            // O que o usuário já descartou não volta.
+            if (WhatsappSugestao::foiDescartada($request->user()->id, $chat->id, $s['titulo'])) {
+                continue;
+            }
+
             $sugestoes[] = WhatsappSugestao::create([
                 'user_id' => $request->user()->id,
                 'chat_id' => $chat->id,
@@ -94,14 +99,21 @@ class AnaliseController extends Controller
     {
         $status = $request->query('status', 'pendente');
 
+        // Descartada some da tela de vez — o usuário já disse que não quer.
         $query = WhatsappSugestao::with('chat:id,chat_name,sender_name,phone,chave', 'task:id,title,project_id')
-            ->where('user_id', $request->user()->id);
+            ->where('user_id', $request->user()->id)
+            ->where('status', '!=', 'descartada');
 
-        if (in_array($status, ['pendente', 'aceita', 'descartada'], true)) {
+        if (in_array($status, ['pendente', 'aceita'], true)) {
             $query->where('status', $status);
         }
 
-        return response()->json(['sugestoes' => $query->orderByDesc('created_at')->limit(100)->get()]);
+        $sugestoes = WhatsappSugestao::semDescartadas(
+            $query->orderByDesc('created_at')->limit(100)->get(),
+            $request->user()->id,
+        );
+
+        return response()->json(['sugestoes' => $sugestoes]);
     }
 
     public function aceitar(Request $request, WhatsappSugestao $sugestao, WhatsappTaskBridge $bridge): JsonResponse

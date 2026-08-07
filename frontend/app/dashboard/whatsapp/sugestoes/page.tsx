@@ -99,6 +99,7 @@ export default function WhatsappSugestoesPage() {
     try {
       await descartarWhatsappSugestao(s.id);
       setSugestoes((lista) => lista.filter((item) => item.id !== s.id));
+      appToast.success("Sugestão descartada. Não vai aparecer de novo.");
     } catch (error) {
       appToast.error(error instanceof ApiError ? error.message : "Não foi possível descartar a sugestão.");
     } finally {
@@ -124,7 +125,6 @@ export default function WhatsappSugestoesPage() {
           items={[
             { value: "pendente", label: "Pendentes" },
             { value: "aceita", label: "Aceitas" },
-            { value: "descartada", label: "Descartadas" },
           ]}
         />
 

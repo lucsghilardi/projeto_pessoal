@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Whatsapp;
 
 use App\Http\Controllers\Controller;
 use App\Models\WhatsappRelatorio;
+use App\Models\WhatsappSugestao;
 use App\Services\Whatsapp\WhatsappRelatorioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,9 +30,7 @@ class RelatorioController extends Controller
     {
         abort_unless((int) $relatorio->user_id === (int) $request->user()->id, 403, 'Este relatório não pertence a você.');
 
-        $relatorio->load('sugestoes');
-
-        return response()->json(['relatorio' => $relatorio]);
+        return response()->json(['relatorio' => $this->comSugestoesVisiveis($relatorio, $request)]);
     }
 
     /**
@@ -55,6 +54,17 @@ class RelatorioController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['relatorio' => $relatorio->load('sugestoes')], 201);
+        return response()->json(['relatorio' => $this->comSugestoesVisiveis($relatorio, $request)], 201);
+    }
+
+    /** Sugestão descartada não aparece nem no histórico do relatório. */
+    private function comSugestoesVisiveis(WhatsappRelatorio $relatorio, Request $request): WhatsappRelatorio
+    {
+        $relatorio->load('sugestoes');
+
+        return $relatorio->setRelation(
+            'sugestoes',
+            WhatsappSugestao::semDescartadas($relatorio->sugestoes, $request->user()->id),
+        );
     }
 }

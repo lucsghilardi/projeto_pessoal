@@ -89,6 +89,13 @@ export function shiftMonth(month: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Soma `delta` dias a um "YYYY-MM-DD" (sem conversão de fuso). */
+export function shiftDay(day: string, delta: number) {
+  const [year, mo, dia] = day.slice(0, 10).split("-").map(Number);
+  const d = new Date(year, mo - 1, dia + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function datePart(value: string): [string, string, string] | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   return match ? [match[1], match[2], match[3]] : null;

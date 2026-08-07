@@ -244,8 +244,6 @@ export default function WhatsappRelatoriosPage() {
                         <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                           <CheckCircle2 className="size-3" /> aceita
                         </span>
-                      ) : s.status === "descartada" ? (
-                        <span className="text-xs text-muted-foreground">descartada</span>
                       ) : (
                         <span className="text-xs text-amber-600">pendente</span>
                       )}
