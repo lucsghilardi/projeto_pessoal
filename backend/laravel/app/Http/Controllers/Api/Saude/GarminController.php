@@ -7,6 +7,8 @@ use App\Services\Saude\GarminImportService;
 use App\Services\Saude\GarminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class GarminController extends Controller
@@ -39,5 +41,35 @@ class GarminController extends Controller
         }
 
         return response()->json($resultado);
+    }
+
+    /**
+     * Versão silenciosa, chamada pelo frontend ao abrir as telas de Saúde.
+     * Nunca responde erro de integração (auto-sync não pode virar toast de
+     * erro na navegação) e usa uma trava de 10 min por usuário para não
+     * martelar o Garmin — a API é não oficial e aplica rate limit.
+     */
+    public function sincronizarAuto(Request $request, GarminService $garmin, GarminImportService $import): JsonResponse
+    {
+        if (! $garmin->configOk()) {
+            return response()->json(['executado' => false, 'motivo' => 'nao_configurado']);
+        }
+
+        // Cache::add é atômico: duas abas abertas juntas disparam um sync só.
+        // A trava entra ANTES de rodar — se falhar, o job horário cobre.
+        $chave = 'saude:garmin:auto:'.$request->user()->id;
+        if (! Cache::add($chave, now()->toIso8601String(), now()->addMinutes(10))) {
+            return response()->json(['executado' => false, 'motivo' => 'recente']);
+        }
+
+        try {
+            $resultado = $import->sincronizar();
+        } catch (RuntimeException $erro) {
+            Log::warning('Garmin: auto-sync falhou.', ['erro' => $erro->getMessage()]);
+
+            return response()->json(['executado' => false, 'motivo' => 'erro']);
+        }
+
+        return response()->json(['executado' => true, ...$resultado]);
     }
 }

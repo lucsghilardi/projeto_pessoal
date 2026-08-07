@@ -94,6 +94,7 @@ import {
     SaudeCheckinResult,
     SaudeExercicio,
     SaudeExercicioPayload,
+    SaudeGarminAutoSync,
     SaudeGarminStatus,
     SaudeGarminSync,
     SaudeMeta,
@@ -104,6 +105,7 @@ import {
     SaudePeso,
     SaudePesoPayload,
     SaudeRefeicao,
+    SaudeRefeicaoAnalise,
     SaudeRefeicaoPayload,
     SaudeSuplemento,
     SaudeSuplementoPayload,
@@ -1106,6 +1108,11 @@ export function sincronizarSaudeGarmin(dias?: number) {
     });
 }
 
+/** Sync em background ao abrir as telas de Saúde (trava de 10 min no servidor). */
+export function autoSincronizarSaudeGarmin() {
+    return apiFetch<SaudeGarminAutoSync>('/saude/garmin/sincronizar-auto', { method: 'POST' });
+}
+
 export function getSaudePesos(de?: string, ate?: string) {
     const params = new URLSearchParams();
     if (de) params.set('de', de);
@@ -1161,17 +1168,73 @@ export function getSaudeRefeicoes(de?: string, ate?: string) {
     return apiFetch<SaudeRefeicao[]>(`/saude/refeicoes${qs ? `?${qs}` : ''}`);
 }
 
-export function createSaudeRefeicao(data: SaudeRefeicaoPayload) {
-    return apiFetch<SaudeRefeicao>('/saude/refeicoes', {
+/**
+ * Pede à IA a estimativa nutricional de uma descrição e/ou foto do prato. Não
+ * grava nada: serve para preencher o formulário, que o usuário confere e confirma.
+ */
+export function analisarSaudeRefeicao(descricao: string, foto?: File | null) {
+    const formData = new FormData();
+    if (descricao.trim()) formData.append('descricao', descricao.trim());
+    if (foto) formData.append('foto', foto);
+
+    return apiFetch<SaudeRefeicaoAnalise>('/saude/refeicoes/analisar', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: formData,
     });
 }
 
-export function updateSaudeRefeicao(id: number, data: SaudeRefeicaoPayload) {
+/** Multipart só quando há foto — o resto do app segue mandando JSON. */
+function refeicaoFormData(data: SaudeRefeicaoPayload, foto: File | null, removerFoto: boolean) {
+    const formData = new FormData();
+
+    Object.entries(data).forEach(([campo, valor]) => {
+        if (valor === null || valor === undefined || campo === 'itens') return;
+        formData.append(campo, String(valor));
+    });
+
+    data.itens?.forEach((item, i) => {
+        formData.append(`itens[${i}][nome]`, item.nome);
+        formData.append(`itens[${i}][quantidade]`, item.quantidade);
+        formData.append(`itens[${i}][calorias]`, String(item.calorias));
+        if (item.proteinas_g != null) {
+            formData.append(`itens[${i}][proteinas_g]`, String(item.proteinas_g));
+        }
+    });
+
+    if (foto) formData.append('foto', foto);
+    if (removerFoto) formData.append('remover_foto', '1');
+
+    return formData;
+}
+
+export function createSaudeRefeicao(data: SaudeRefeicaoPayload, foto?: File | null) {
+    return apiFetch<SaudeRefeicao>('/saude/refeicoes', {
+        method: 'POST',
+        body: foto ? refeicaoFormData(data, foto, false) : JSON.stringify(data),
+    });
+}
+
+export function updateSaudeRefeicao(
+    id: number,
+    data: SaudeRefeicaoPayload,
+    opcoes: { foto?: File | null; removerFoto?: boolean } = {},
+) {
+    const { foto = null, removerFoto = false } = opcoes;
+
+    if (!foto && !removerFoto) {
+        return apiFetch<SaudeRefeicao>(`/saude/refeicoes/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    // PUT não carrega multipart no PHP: manda POST com _method (spoofing do Laravel).
+    const formData = refeicaoFormData(data, foto, removerFoto);
+    formData.append('_method', 'PUT');
+
     return apiFetch<SaudeRefeicao>(`/saude/refeicoes/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
+        method: 'POST',
+        body: formData,
     });
 }
 

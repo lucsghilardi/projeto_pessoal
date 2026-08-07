@@ -7,6 +7,7 @@ import { Line, LineChart, ResponsiveContainer } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { useGarminAutoSync } from "@/hooks/use-garmin-auto-sync";
 import { StreakCard } from "@/components/saude/streak-card";
 import { SuplementoSheet } from "@/components/saude/suplemento-sheet";
 import { fireConfetti } from "@/components/tarefas/confetti";
@@ -70,6 +71,9 @@ export default function SaudePage() {
       );
     }
   }, []);
+
+  // Puxa as atividades novas do relógio ao abrir a tela (trava no servidor).
+  useGarminAutoSync(load);
 
   useEffect(() => {
     let mounted = true;

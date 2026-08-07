@@ -152,6 +152,16 @@ export type SaudeGarminSync = {
   ignorados: number;
 };
 
+/** Resposta do auto-sync: nunca é erro HTTP — falha vira `executado: false`. */
+export type SaudeGarminAutoSync = {
+  executado: boolean;
+  motivo?: "nao_configurado" | "recente" | "erro";
+  cardio?: number;
+  treinos?: number;
+  dias?: number;
+  ignorados?: number;
+};
+
 export type SaudeCardioResumo = {
   de: string;
   ate: string;
@@ -232,6 +242,32 @@ export type SaudeRefeicaoItem = {
   proteinas_g?: number;
 };
 
+export type SaudeRefeicaoConfianca = "alta" | "media" | "baixa";
+
+/**
+ * `whatsapp_*`: veio da conversa consigo mesmo. `painel_ia`: estimada pela IA
+ * no formulário e confirmada pelo usuário. `manual`: digitada por inteiro.
+ */
+export type SaudeRefeicaoOrigem =
+  | "whatsapp_foto"
+  | "whatsapp_texto"
+  | "painel_ia"
+  | "manual";
+
+/** Estimativa da IA antes de virar refeição — o usuário ainda vai confirmar. */
+export type SaudeRefeicaoAnalise = {
+  /** false quando a foto/descrição não tem comida identificável. */
+  e_comida: boolean;
+  nome: string;
+  tipo: SaudeRefeicaoTipo;
+  itens: SaudeRefeicaoItem[];
+  calorias: number;
+  proteinas_g: number;
+  carboidratos_g: number | null;
+  gorduras_g: number | null;
+  confianca: SaudeRefeicaoConfianca;
+};
+
 export type SaudeRefeicao = {
   id: number;
   /** "YYYY-MM-DD" */
@@ -247,8 +283,8 @@ export type SaudeRefeicao = {
   proteinas_g: string;
   carboidratos_g: string | null;
   gorduras_g: string | null;
-  confianca: "alta" | "media" | "baixa" | null;
-  origem: "whatsapp_foto" | "whatsapp_texto" | "manual";
+  confianca: SaudeRefeicaoConfianca | null;
+  origem: SaudeRefeicaoOrigem;
   whatsapp_mensagem_id: number | null;
   foto_path: string | null;
   observacao: string | null;
@@ -265,6 +301,10 @@ export type SaudeRefeicaoPayload = {
   carboidratos_g?: number | null;
   gorduras_g?: number | null;
   observacao?: string | null;
+  /** Preenchidos ao confirmar uma estimativa da IA feita no painel. */
+  origem?: Extract<SaudeRefeicaoOrigem, "manual" | "painel_ia">;
+  confianca?: SaudeRefeicaoConfianca | null;
+  itens?: SaudeRefeicaoItem[] | null;
 };
 
 export type SaudeNutricaoMetas = {

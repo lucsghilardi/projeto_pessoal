@@ -14,6 +14,7 @@ import {
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { useGarminAutoSync } from "@/hooks/use-garmin-auto-sync";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { CardioSheet, MODALIDADES } from "@/components/saude/cardio-sheet";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,9 @@ export default function CardioPage() {
     setResumo(resumoData);
     setGarmin(garminData);
   }, []);
+
+  // Puxa as atividades novas do relógio ao abrir a tela (trava no servidor).
+  useGarminAutoSync(load);
 
   async function sincronizarGarmin() {
     setSincronizando(true);

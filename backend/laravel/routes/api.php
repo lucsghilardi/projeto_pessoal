@@ -205,6 +205,7 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         // Garmin Connect (via sidecar Python; ver config/garmin.php).
         Route::get('/garmin/status', [GarminController::class, 'status']);
         Route::post('/garmin/sincronizar', [GarminController::class, 'sincronizar']);
+        Route::post('/garmin/sincronizar-auto', [GarminController::class, 'sincronizarAuto']);
 
         Route::apiResource('pesos', PesoController::class)
             ->parameters(['pesos' => 'peso'])
@@ -217,6 +218,8 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/nutricao', [NutricaoController::class, 'overview']);
         Route::get('/nutricao/projecao', [NutricaoController::class, 'projecao']);
         Route::get('/refeicoes/{refeicao}/foto', [RefeicaoController::class, 'foto']);
+        // Estimativa da IA para preencher o formulário do painel (não grava nada).
+        Route::post('/refeicoes/analisar', [RefeicaoController::class, 'analisar']);
         Route::apiResource('refeicoes', RefeicaoController::class)
             ->parameters(['refeicoes' => 'refeicao'])
             ->except(['show', 'create', 'edit']);

@@ -9,6 +9,7 @@ use App\Models\SaudeTreinoSessao;
 use App\Models\User;
 use App\Services\Saude\GarminImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\TestCase;
@@ -145,6 +146,72 @@ class GarminSyncTest extends TestCase
         );
     }
 
+    public function test_auto_sync_importa_e_devolve_contagens(): void
+    {
+        $user = $this->usuarioGarmin();
+        $this->fakeSidecar([
+            $this->atividade(23876374258, 'treadmill_running', '2026-08-06 12:23:57', duracaoSeg: 475.5),
+        ]);
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($user))
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', true)
+            ->assertJsonPath('cardio', 1);
+
+        $this->assertSame(1, SaudeCardioSessao::count());
+    }
+
+    public function test_auto_sync_respeita_a_trava_de_dez_minutos(): void
+    {
+        $user = $this->usuarioGarmin();
+        $token = $this->bearerTokenFor($user);
+        $this->fakeSidecar([]);
+
+        $this->withHeader('Authorization', $token)
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', true);
+
+        $chamadasAposPrimeira = count(Http::recorded());
+
+        // Segunda chamada dentro da janela: nada de HTTP novo para o sidecar.
+        $this->withHeader('Authorization', $token)
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', false)
+            ->assertJsonPath('motivo', 'recente');
+
+        $this->assertCount($chamadasAposPrimeira, Http::recorded());
+    }
+
+    public function test_auto_sync_nao_configurado_e_silencioso(): void
+    {
+        config(['garmin.ativo' => false]);
+        $user = $this->usuarioGarmin();
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($user))
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', false)
+            ->assertJsonPath('motivo', 'nao_configurado');
+    }
+
+    public function test_auto_sync_com_sidecar_quebrado_nao_estoura(): void
+    {
+        $user = $this->usuarioGarmin();
+
+        Http::fake([
+            self::BASE.'/atividades*' => Http::response(['erro' => 'tokens_invalidos'], 401),
+        ]);
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($user))
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', false)
+            ->assertJsonPath('motivo', 'erro');
+    }
+
     /** @param  list<array<string, mixed>>  $atividades */
     private function fakeSidecar(array $atividades): void
     {
@@ -190,5 +257,10 @@ class GarminSyncTest extends TestCase
         config(['garmin.user_email' => 'garmin@teste.com']);
 
         return $user;
+    }
+
+    private function bearerTokenFor(User $user): string
+    {
+        return 'Bearer '.Auth::guard('api')->login($user);
     }
 }

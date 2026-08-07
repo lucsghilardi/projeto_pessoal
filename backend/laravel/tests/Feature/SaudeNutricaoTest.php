@@ -21,6 +21,7 @@ use App\Services\Whatsapp\WhatsappIngestService;
 use App\Services\Whatsapp\WhatsappSender;
 use App\Services\Whatsapp\WhatsappTaskBridge;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -43,7 +44,7 @@ class SaudeNutricaoTest extends TestCase
             'peso_meta_kg' => 82,
             'altura_cm' => 178,
             'sexo' => 'M',
-            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'data_nascimento' => now((string) config('saude.timezone'))->subYears(35)->toDateString(),
             'nivel_atividade' => 'moderado',
         ]);
         SaudePeso::create(['user_id' => $user->id, 'data' => now()->toDateString(), 'peso_kg' => 92]);
@@ -188,7 +189,7 @@ class SaudeNutricaoTest extends TestCase
             'peso_meta_kg' => 82,
             'altura_cm' => 178,
             'sexo' => 'M',
-            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'data_nascimento' => now((string) config('saude.timezone'))->subYears(35)->toDateString(),
             'nivel_atividade' => 'moderado',
         ]);
         SaudePeso::create(['user_id' => $user->id, 'data' => now()->toDateString(), 'peso_kg' => 92]);
@@ -206,7 +207,7 @@ class SaudeNutricaoTest extends TestCase
             'data_alvo' => now()->addDays(10)->toDateString(),
             'altura_cm' => 178,
             'sexo' => 'M',
-            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'data_nascimento' => now((string) config('saude.timezone'))->subYears(35)->toDateString(),
             'nivel_atividade' => 'moderado',
         ]);
         SaudePeso::create(['user_id' => $user->id, 'data' => now()->toDateString(), 'peso_kg' => 92]);
@@ -239,7 +240,7 @@ class SaudeNutricaoTest extends TestCase
             'user_id' => $user->id,
             'altura_cm' => 178,
             'sexo' => 'M',
-            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'data_nascimento' => now((string) config('saude.timezone'))->subYears(35)->toDateString(),
             'nivel_atividade' => 'moderado',
             'calorias_alvo' => 2000,
             'proteinas_alvo_g' => 150,
@@ -306,6 +307,197 @@ class SaudeNutricaoTest extends TestCase
         $this->assertSame(0, SaudeRefeicao::count());
     }
 
+    // ============================================================
+    // Painel — estimativa da IA no formulário
+    // ============================================================
+
+    public function test_analisar_estima_pela_descricao_sem_gravar_nada(): void
+    {
+        $token = $this->bearerTokenFor(User::factory()->create());
+
+        $ia = Mockery::mock(SaudeNutricaoAI::class);
+        $ia->shouldReceive('analisarTexto')
+            ->once()
+            ->with('2 ovos mexidos e café com leite')
+            ->andReturn($this->analiseFake());
+        $this->app->instance(SaudeNutricaoAI::class, $ia);
+
+        $this->withHeader('Authorization', $token)
+            ->postJson('/api/saude/refeicoes/analisar', [
+                'descricao' => '2 ovos mexidos e café com leite',
+            ])
+            ->assertOk()
+            ->assertJsonPath('calorias', 620)
+            ->assertJsonPath('confianca', 'alta')
+            ->assertJsonPath('itens.0.nome', 'Frango');
+
+        // Quem grava é o usuário, ao confirmar.
+        $this->assertSame(0, SaudeRefeicao::count());
+    }
+
+    public function test_analisar_usa_a_foto_e_passa_a_descricao_como_complemento(): void
+    {
+        $token = $this->bearerTokenFor(User::factory()->create());
+
+        $ia = Mockery::mock(SaudeNutricaoAI::class);
+        $ia->shouldReceive('analisarFoto')
+            ->once()
+            ->withArgs(fn ($binario, $mime, $caption) => $binario !== ''
+                && str_starts_with((string) $mime, 'image/')
+                && $caption === 'fritei no óleo')
+            ->andReturn($this->analiseFake());
+        $this->app->instance(SaudeNutricaoAI::class, $ia);
+
+        $this->withHeader('Authorization', $token)
+            ->post('/api/saude/refeicoes/analisar', [
+                'descricao' => 'fritei no óleo',
+                'foto' => $this->fotoFake('prato.png'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('e_comida', true);
+    }
+
+    public function test_analisar_sem_descricao_nem_foto_e_recusado(): void
+    {
+        $token = $this->bearerTokenFor(User::factory()->create());
+
+        $ia = Mockery::mock(SaudeNutricaoAI::class);
+        $ia->shouldNotReceive('analisarTexto');
+        $ia->shouldNotReceive('analisarFoto');
+        $this->app->instance(SaudeNutricaoAI::class, $ia);
+
+        $this->withHeader('Authorization', $token)
+            ->postJson('/api/saude/refeicoes/analisar', [])
+            ->assertStatus(422);
+    }
+
+    public function test_confirmar_estimativa_grava_procedencia_itens_e_foto(): void
+    {
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $token = $this->bearerTokenFor($user);
+
+        $resposta = $this->withHeader('Authorization', $token)
+            ->post('/api/saude/refeicoes', [
+                'data' => '2026-08-06',
+                'horario' => '12:30',
+                'nome' => 'Frango grelhado com arroz',
+                'tipo' => 'almoco',
+                'calorias' => 620,
+                'proteinas_g' => 45,
+                'origem' => 'painel_ia',
+                'confianca' => 'alta',
+                'itens' => [
+                    ['nome' => 'Frango', 'quantidade' => '1 filé', 'calorias' => 220, 'proteinas_g' => 40],
+                ],
+                'foto' => $this->fotoFake('prato.png'),
+            ])
+            ->assertCreated()
+            ->assertJsonPath('origem', 'painel_ia')
+            ->assertJsonPath('confianca', 'alta')
+            ->assertJsonPath('itens.0.nome', 'Frango');
+
+        $refeicao = SaudeRefeicao::findOrFail($resposta->json('id'));
+        $this->assertStringStartsWith("saude/refeicoes/{$user->id}/", (string) $refeicao->foto_path);
+        Storage::disk('local')->assertExists($refeicao->foto_path);
+
+        $this->withHeader('Authorization', $token)
+            ->get("/api/saude/refeicoes/{$refeicao->id}/foto")
+            ->assertOk();
+
+        // Apagar a refeição leva a foto junto.
+        $this->withHeader('Authorization', $token)
+            ->deleteJson("/api/saude/refeicoes/{$refeicao->id}")
+            ->assertOk();
+        Storage::disk('local')->assertMissing($refeicao->foto_path);
+    }
+
+    public function test_editar_no_painel_nao_apaga_a_procedencia_do_whatsapp(): void
+    {
+        $user = User::factory()->create();
+        $token = $this->bearerTokenFor($user);
+
+        $refeicao = SaudeRefeicao::create([
+            'user_id' => $user->id,
+            'data' => '2026-08-06',
+            'horario' => '12:30:00',
+            'nome' => 'PF com bife',
+            'tipo' => 'almoco',
+            'itens' => [['nome' => 'Bife', 'quantidade' => '1 unidade', 'calorias' => 300]],
+            'calorias' => 750,
+            'proteinas_g' => 42,
+            'confianca' => 'media',
+            'origem' => 'whatsapp_foto',
+        ]);
+
+        // O formulário manda só os campos nutricionais ao corrigir a estimativa.
+        $this->withHeader('Authorization', $token)
+            ->putJson("/api/saude/refeicoes/{$refeicao->id}", [
+                'data' => '2026-08-06',
+                'horario' => '12:30',
+                'nome' => 'PF com bife (meia porção)',
+                'calorias' => 500,
+            ])
+            ->assertOk()
+            ->assertJsonPath('calorias', 500)
+            ->assertJsonPath('origem', 'whatsapp_foto')
+            ->assertJsonPath('confianca', 'media')
+            ->assertJsonPath('itens.0.nome', 'Bife');
+    }
+
+    public function test_editar_troca_a_foto_e_apaga_a_anterior(): void
+    {
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $token = $this->bearerTokenFor($user);
+
+        $antiga = "saude/refeicoes/{$user->id}/antiga.jpg";
+        Storage::disk('local')->put($antiga, 'fake-jpeg-bytes');
+
+        $refeicao = SaudeRefeicao::create([
+            'user_id' => $user->id,
+            'data' => '2026-08-06',
+            'horario' => '12:30:00',
+            'nome' => 'PF com bife',
+            'calorias' => 750,
+            'proteinas_g' => 42,
+            'origem' => 'painel_ia',
+            'foto_path' => $antiga,
+        ]);
+
+        $this->withHeader('Authorization', $token)
+            ->post("/api/saude/refeicoes/{$refeicao->id}", [
+                '_method' => 'PUT',
+                'data' => '2026-08-06',
+                'horario' => '12:30',
+                'nome' => 'PF com bife',
+                'calorias' => 750,
+                'foto' => $this->fotoFake('nova.png'),
+            ])
+            ->assertOk();
+
+        $nova = (string) $refeicao->fresh()->foto_path;
+        $this->assertNotSame($antiga, $nova);
+        Storage::disk('local')->assertMissing($antiga);
+        Storage::disk('local')->assertExists($nova);
+
+        // remover_foto sem arquivo novo desanexa e limpa o disco.
+        $this->withHeader('Authorization', $token)
+            ->putJson("/api/saude/refeicoes/{$refeicao->id}", [
+                'data' => '2026-08-06',
+                'horario' => '12:30',
+                'nome' => 'PF com bife',
+                'calorias' => 750,
+                'remover_foto' => true,
+            ])
+            ->assertOk();
+
+        $this->assertNull($refeicao->fresh()->foto_path);
+        Storage::disk('local')->assertMissing($nova);
+    }
+
     public function test_overview_soma_o_dia_e_calcula_restante(): void
     {
         $user = User::factory()->create();
@@ -314,7 +506,7 @@ class SaudeNutricaoTest extends TestCase
             'user_id' => $user->id,
             'altura_cm' => 178,
             'sexo' => 'M',
-            'data_nascimento' => now()->subYears(35)->toDateString(),
+            'data_nascimento' => now((string) config('saude.timezone'))->subYears(35)->toDateString(),
             'nivel_atividade' => 'moderado',
             'calorias_alvo' => 2000,
             'proteinas_alvo_g' => 150,
@@ -563,6 +755,40 @@ class SaudeNutricaoTest extends TestCase
     private function bearerTokenFor(User $user): string
     {
         return 'Bearer '.Auth::guard('api')->login($user);
+    }
+
+    /**
+     * PNG 1x1 de verdade: UploadedFile::fake()->image() depende da extensão GD,
+     * que não está instalada na imagem do backend.
+     */
+    private function fotoFake(string $nome): UploadedFile
+    {
+        $caminho = tempnam(sys_get_temp_dir(), 'foto').'.png';
+        file_put_contents($caminho, (string) base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        ));
+
+        return new UploadedFile($caminho, $nome, 'image/png', null, true);
+    }
+
+    /**
+     * Retorno já normalizado do SaudeNutricaoAI.
+     *
+     * @return array<string, mixed>
+     */
+    private function analiseFake(): array
+    {
+        return [
+            'e_comida' => true,
+            'nome' => 'Frango grelhado com arroz',
+            'tipo' => 'almoco',
+            'itens' => [['nome' => 'Frango', 'quantidade' => '1 filé', 'calorias' => 220, 'proteinas_g' => 40.0]],
+            'calorias' => 620,
+            'proteinas_g' => 45.0,
+            'carboidratos_g' => 55.0,
+            'gorduras_g' => 18.0,
+            'confianca' => 'alta',
+        ];
     }
 
     /**

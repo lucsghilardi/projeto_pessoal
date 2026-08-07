@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, Pencil, Plus, Target, Trash2 } from "lucide-react";
+import { Camera, Pencil, Plus, Sparkles, Target, Trash2 } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -18,6 +18,7 @@ import {
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
+import { useGarminAutoSync } from "@/hooks/use-garmin-auto-sync";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { MetaSheet } from "@/components/saude/meta-sheet";
 import { RefeicaoSheet } from "@/components/saude/refeicao-sheet";
@@ -61,6 +62,12 @@ const CONFIANCA_LABEL: Record<string, string> = {
   baixa: "confiança baixa",
 };
 
+const ORIGEM_LABEL: Record<string, string> = {
+  whatsapp_foto: "via WhatsApp",
+  whatsapp_texto: "via WhatsApp",
+  painel_ia: "estimado por IA",
+};
+
 function kcal(valor: number) {
   return valor.toLocaleString("pt-BR");
 }
@@ -89,6 +96,10 @@ export default function CaloriasPage() {
     setProjecao(projecaoData.projecao);
     setMeta(metaData.meta);
   }, []);
+
+  // Puxa as atividades novas do relógio ao abrir a tela — o gasto do exercício
+  // muda a meta do dia, então esta página é a mais interessada no sync.
+  useGarminAutoSync(load);
 
   useEffect(() => {
     let mounted = true;
@@ -178,7 +189,7 @@ export default function CaloriasPage() {
     <div className="space-y-5">
       <DashboardPageHeader
         title="Calorias"
-        description="Diário alimentar com IA: mande a foto do prato para você mesmo no WhatsApp e acompanhe aqui."
+        description="Diário alimentar com IA: mande a foto do prato no WhatsApp ou registre aqui — descreva, anexe a foto e confirme a estimativa."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setMetaSheetOpen(true)}>
@@ -301,7 +312,7 @@ export default function CaloriasPage() {
               key={refeicao.id}
               className="flex items-center gap-3 rounded-lg border p-3"
             >
-              {refeicao.origem === "whatsapp_foto" && refeicao.foto_path ? (
+              {refeicao.foto_path ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={saudeRefeicaoFotoUrl(refeicao.id)}
@@ -312,6 +323,8 @@ export default function CaloriasPage() {
                 <div className="flex size-14 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {refeicao.origem === "manual" ? (
                     <Pencil className="size-5" />
+                  ) : refeicao.origem === "painel_ia" ? (
+                    <Sparkles className="size-5" />
                   ) : (
                     <Camera className="size-5" />
                   )}
@@ -327,7 +340,7 @@ export default function CaloriasPage() {
                   {refeicao.confianca
                     ? ` · ${CONFIANCA_LABEL[refeicao.confianca]}`
                     : ""}
-                  {refeicao.origem !== "manual" ? " · via WhatsApp" : ""}
+                  {ORIGEM_LABEL[refeicao.origem] ? ` · ${ORIGEM_LABEL[refeicao.origem]}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Proteínas {gramas(toNumber(refeicao.proteinas_g))}
