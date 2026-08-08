@@ -118,6 +118,13 @@ services:
       LOG_LEVEL: ERROR,WARN
     volumes:
       - sistemaraiz_prod_evolution:/evolution/instances
+    # `wa_shared` é uma rede externa compartilhada com o compose do beef_loja
+    # (gestao.movidoaweb.com.br), que roda no mesmo servidor e usa esta Evolution
+    # com uma INSTÂNCIA PRÓPRIA — o webhook e a sessão daqui não são tocados.
+    # Criar a rede uma vez: `docker network create wa_shared`.
+    # Listar `default` é obrigatório: declarar `networks` desliga o encaixe
+    # automático na rede padrão do projeto, e o container perderia o postgres.
+    networks: [default, wa_shared]
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,6 +168,14 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+# Rede externa compartilhada com o compose do beef_loja, que usa esta Evolution
+# API (com instância própria) para o módulo de atendimento por WhatsApp.
+# Criar uma vez no servidor: `docker network create wa_shared`.
+networks:
+  wa_shared:
+    external: true
+    name: wa_shared
 
 volumes:
   sistemaraiz_prod_pgdata:
