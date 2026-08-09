@@ -45,6 +45,8 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
   const [pesoMeta, setPesoMeta] = useState("");
   const [dataAlvo, setDataAlvo] = useState("");
   const [altura, setAltura] = useState("");
+  const [sonoHoras, setSonoHoras] = useState("");
+  const [sonoMinutos, setSonoMinutos] = useState("");
   const [sexo, setSexo] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [atividade, setAtividade] = useState("");
@@ -62,6 +64,12 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
     setPesoMeta(meta?.peso_meta_kg ?? "");
     setDataAlvo(meta?.data_alvo ? meta.data_alvo.slice(0, 10) : "");
     setAltura(meta?.altura_cm != null ? String(meta.altura_cm) : "");
+    setSonoHoras(
+      meta?.sono_meta_min != null ? String(Math.floor(meta.sono_meta_min / 60)) : "",
+    );
+    setSonoMinutos(
+      meta?.sono_meta_min != null ? String(meta.sono_meta_min % 60) : "",
+    );
     setSexo(meta?.sexo ?? "");
     setNascimento(meta?.data_nascimento ? meta.data_nascimento.slice(0, 10) : "");
     setAtividade(meta?.nivel_atividade ?? "sedentario");
@@ -81,12 +89,23 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
       return;
     }
 
+    // Campos vazios = sem meta de sono; qualquer um preenchido conta o total.
+    const sonoTotal =
+      sonoHoras.trim() || sonoMinutos.trim()
+        ? (Number(sonoHoras) || 0) * 60 + (Number(sonoMinutos) || 0)
+        : null;
+    if (sonoTotal !== null && (sonoTotal < 180 || sonoTotal > 900)) {
+      setFormError("A meta de sono precisa ficar entre 3h e 15h.");
+      return;
+    }
+
     setSaving(true);
     try {
       await saveSaudeMeta({
         peso_meta_kg: pesoValor,
         data_alvo: dataAlvo || null,
         altura_cm: altura.trim() ? Number(altura) : null,
+        sono_meta_min: sonoTotal,
         sexo: sexo === "M" || sexo === "F" ? sexo : null,
         data_nascimento: nascimento || null,
         nivel_atividade: (atividade || null) as SaudeNivelAtividade | null,
@@ -173,6 +192,37 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
                 </Select>
               </Field>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel htmlFor="meta-sono-horas">Sono/noite (h)</FieldLabel>
+                <Input
+                  id="meta-sono-horas"
+                  type="number"
+                  min={3}
+                  max={15}
+                  value={sonoHoras}
+                  onChange={(e) => setSonoHoras(e.target.value)}
+                  placeholder="7"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="meta-sono-minutos">Sono/noite (min)</FieldLabel>
+                <Input
+                  id="meta-sono-minutos"
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={sonoMinutos}
+                  onChange={(e) => setSonoMinutos(e.target.value)}
+                  placeholder="30"
+                />
+              </Field>
+            </div>
+            <FieldDescription>
+              Vira a linha de referência do gráfico de sono e o contador de
+              noites na meta.
+            </FieldDescription>
 
             <div className="grid grid-cols-2 gap-3">
               <Field>

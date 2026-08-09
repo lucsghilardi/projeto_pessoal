@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SaudeCardioSessao;
 use App\Models\SaudeMeta;
 use App\Models\SaudePeso;
+use App\Models\SaudeSono;
 use App\Models\SaudeSuplemento;
 use App\Models\SaudeSuplementoCheckin;
 use App\Models\SaudeTreino;
@@ -87,6 +88,21 @@ class SaudeOverviewController extends Controller
             ->sortBy('data')
             ->values();
 
+        $meta = SaudeMeta::where('user_id', $userId)->first();
+
+        $sonoNoite = SaudeSono::query()
+            ->where('user_id', $userId)
+            ->where('data', $data)
+            ->first();
+
+        // Ordem cronológica: o card desenha um sparkline das últimas noites.
+        $sonosRecentes = SaudeSono::query()
+            ->where('user_id', $userId)
+            ->where('data', '>=', CarbonImmutable::parse($data)->subDays(29)->toDateString())
+            ->where('data', '<=', $data)
+            ->orderBy('data')
+            ->get(['id', 'data', 'duracao_min', 'score']);
+
         return response()->json([
             'data' => $data,
             'suplementos' => $suplementosDia,
@@ -108,7 +124,12 @@ class SaudeOverviewController extends Controller
             'peso' => [
                 'ultimo' => $ultimoPeso,
                 'recentes' => $pesosRecentes,
-                'meta' => SaudeMeta::where('user_id', $userId)->first(),
+                'meta' => $meta,
+            ],
+            'sono' => [
+                'noite' => $sonoNoite,
+                'recentes' => $sonosRecentes,
+                'meta_min' => $meta?->sono_meta_min,
             ],
         ]);
     }

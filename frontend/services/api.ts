@@ -107,6 +107,8 @@ import {
     SaudeRefeicao,
     SaudeRefeicaoAnalise,
     SaudeRefeicaoPayload,
+    SaudeSono,
+    SaudeSonoPayload,
     SaudeSuplemento,
     SaudeSuplementoPayload,
     SaudeTreino,
@@ -1138,6 +1140,34 @@ export function updateSaudePeso(id: number, data: { peso_kg: number; observacao?
 
 export function deleteSaudePeso(id: number) {
     return apiFetch<{ message: string }>(`/saude/pesos/${id}`, { method: 'DELETE' });
+}
+
+export function getSaudeSonos(de?: string, ate?: string) {
+    const params = new URLSearchParams();
+    if (de) params.set('de', de);
+    if (ate) params.set('ate', ate);
+    const qs = params.toString();
+
+    return apiFetch<SaudeSono[]>(`/saude/sono${qs ? `?${qs}` : ''}`);
+}
+
+/** Upsert por data no servidor: relançar a mesma noite sobrescreve. */
+export function createSaudeSono(data: SaudeSonoPayload) {
+    return apiFetch<SaudeSono>('/saude/sono', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeSono(id: number, data: Omit<SaudeSonoPayload, 'data'>) {
+    return apiFetch<SaudeSono>(`/saude/sono/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeSono(id: number) {
+    return apiFetch<{ message: string }>(`/saude/sono/${id}`, { method: 'DELETE' });
 }
 
 export function getSaudeMeta() {

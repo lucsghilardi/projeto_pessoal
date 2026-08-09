@@ -26,6 +26,8 @@ class MetaController extends Controller
             'peso_meta_kg' => ['nullable', 'numeric', 'min:20', 'max:400'],
             'data_alvo' => ['nullable', 'date_format:Y-m-d'],
             'altura_cm' => ['nullable', 'integer', 'min:100', 'max:250'],
+            // Meta de sono por noite, em minutos (3h a 15h).
+            'sono_meta_min' => ['nullable', 'integer', 'min:180', 'max:900'],
             // Perfil nutricional (TMB/TDEE) e overrides das metas calculadas.
             'sexo' => ['nullable', Rule::in(['M', 'F'])],
             'data_nascimento' => ['nullable', 'date_format:Y-m-d', 'before:today'],
@@ -44,6 +46,7 @@ class MetaController extends Controller
                 'peso_meta_kg' => $data['peso_meta_kg'] ?? null,
                 'data_alvo' => $data['data_alvo'] ?? null,
                 'altura_cm' => $data['altura_cm'] ?? null,
+                'sono_meta_min' => $data['sono_meta_min'] ?? null,
                 'sexo' => $data['sexo'] ?? null,
                 'data_nascimento' => $data['data_nascimento'] ?? null,
                 'nivel_atividade' => $data['nivel_atividade'] ?? null,

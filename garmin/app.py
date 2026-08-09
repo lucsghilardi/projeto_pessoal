@@ -19,6 +19,7 @@ import base64
 import binascii
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -184,4 +185,52 @@ def dia(data: Annotated[str, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")]) -> dict:
         "fc_repouso": stats.get("restingHeartRate"),
         # O Garmin conta o vigoroso em dobro na meta semanal de 150 min.
         "minutos_intensidade": moderados + vigorosos * 2,
+    }
+
+
+def _hora_local(epoch_ms: Any) -> str | None:
+    """
+    Os campos `*TimestampLocal` já vêm deslocados para o fuso do relógio, então
+    lê-los como UTC devolve a hora de parede certa ("00:35"). Usar o timestamp
+    GMT aqui daria a hora errada por 3h.
+    """
+    if not isinstance(epoch_ms, (int, float)):
+        return None
+
+    return datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc).strftime("%H:%M")
+
+
+@app.get("/sono", dependencies=[Depends(exigir_token)])
+def sono(data: Annotated[str, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")]) -> dict:
+    """
+    A noite que TERMINOU nesta data — é assim que o Garmin indexa o sono: quem
+    dormiu 23h do dia 7 e acordou 6h do dia 8 aparece em `data=2026-08-08`.
+
+    O payload cru passa de 50 KB (série temporal de movimento, respiração e
+    estágios minuto a minuto). Nada disso interessa ao painel, então só o
+    resumo do `dailySleepDTO` atravessa para o Laravel.
+    """
+    bruto = _chamar(cliente().get_sleep_data, data) or {}
+    dto = bruto.get("dailySleepDTO") or {}
+    overall = (dto.get("sleepScores") or {}).get("overall") or {}
+
+    return {
+        "data": dto.get("calendarDate") or data,
+        # None quando a noite não foi medida — o Laravel usa isto para pular o dia.
+        "duracao_seg": dto.get("sleepTimeSeconds"),
+        "profundo_seg": dto.get("deepSleepSeconds"),
+        "leve_seg": dto.get("lightSleepSeconds"),
+        "rem_seg": dto.get("remSleepSeconds"),
+        "acordado_seg": dto.get("awakeSleepSeconds"),
+        "cochilo_seg": dto.get("napTimeSeconds"),
+        "score": overall.get("value"),
+        # "POOR" | "FAIR" | "GOOD" | "EXCELLENT"
+        "score_qualificador": overall.get("qualifierKey"),
+        # `awakeCount` some em alguns firmwares; `restlessMomentsCount` cobre.
+        "despertares": dto.get("awakeCount", bruto.get("restlessMomentsCount")),
+        "estresse_medio": dto.get("avgSleepStress"),
+        # Este vive na raiz do payload, não no DTO.
+        "hrv_medio": bruto.get("avgOvernightHrv"),
+        "inicio_local": _hora_local(dto.get("sleepStartTimestampLocal")),
+        "fim_local": _hora_local(dto.get("sleepEndTimestampLocal")),
     }

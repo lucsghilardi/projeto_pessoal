@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\Saude\NutricaoController;
 use App\Http\Controllers\Api\Saude\PesoController;
 use App\Http\Controllers\Api\Saude\RefeicaoController;
 use App\Http\Controllers\Api\Saude\SaudeOverviewController;
+use App\Http\Controllers\Api\Saude\SonoController;
 use App\Http\Controllers\Api\Saude\SuplementoCheckinController;
 use App\Http\Controllers\Api\Saude\SuplementoController;
 use App\Http\Controllers\Api\Saude\TreinoController;
@@ -209,6 +210,10 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
 
         Route::apiResource('pesos', PesoController::class)
             ->parameters(['pesos' => 'peso'])
+            ->except(['show', 'create', 'edit']);
+
+        // Sono: uma noite por dia, importada do relógio ou lançada à mão.
+        Route::apiResource('sono', SonoController::class)
             ->except(['show', 'create', 'edit']);
 
         Route::get('/meta', [MetaController::class, 'show']);

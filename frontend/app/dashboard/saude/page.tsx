@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Dumbbell, Footprints, Scale, Settings2 } from "lucide-react";
+import { ArrowRight, Dumbbell, Footprints, Moon, Scale, Settings2 } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
@@ -20,7 +20,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatFullDate, formatKg, todayISO, toNumber } from "@/lib/format";
+import {
+  formatDuration,
+  formatFullDate,
+  formatKg,
+  todayISO,
+  toNumber,
+} from "@/lib/format";
 import { appToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -130,6 +136,19 @@ export default function SaudePage() {
       })),
     [overview],
   );
+
+  const mediaSono7 = useMemo(() => {
+    const corte = diasAtras(6);
+    const janela = (overview?.sono.recentes ?? []).filter(
+      (s) => s.data.slice(0, 10) >= corte,
+    );
+
+    if (janela.length === 0) {
+      return null;
+    }
+
+    return janela.reduce((soma, s) => soma + s.duracao_min, 0) / janela.length;
+  }, [overview]);
 
   function aplicaTomado(id: number, tomado: boolean) {
     setOverview((prev) =>
@@ -260,6 +279,8 @@ export default function SaudePage() {
 
   const ultimo = overview.peso.ultimo;
   const meta = overview.peso.meta;
+  const noite = overview.sono.noite;
+  const sonoMetaMin = overview.sono.meta_min;
   const falta =
     ultimo && meta?.peso_meta_kg
       ? toNumber(ultimo.peso_kg) - toNumber(meta.peso_meta_kg)
@@ -499,6 +520,73 @@ export default function SaudePage() {
               className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline"
             >
               Ver evolução e meta
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Moon className="size-4 text-emerald-600" />
+              Sono desta noite
+            </CardTitle>
+            <CardDescription>
+              {noite
+                ? noite.inicio && noite.fim
+                  ? `Das ${noite.inicio.slice(0, 5)} às ${noite.fim.slice(0, 5)}.`
+                  : "Noite registrada."
+                : "O relógio ainda não enviou a noite de hoje."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p
+                  className={cn(
+                    "text-2xl font-semibold tabular-nums",
+                    noite &&
+                      sonoMetaMin !== null &&
+                      (noite.duracao_min >= sonoMetaMin
+                        ? "text-emerald-600"
+                        : "text-amber-600"),
+                  )}
+                >
+                  {noite ? formatDuration(noite.duracao_min * 60) : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {sonoMetaMin !== null
+                    ? `Meta ${formatDuration(sonoMetaMin * 60)} por noite`
+                    : "Defina sua meta na página de sono."}
+                  {noite?.score != null ? ` · score ${noite.score}` : ""}
+                </p>
+              </div>
+              {noite ? (
+                <div className="shrink-0 text-right text-xs text-muted-foreground">
+                  {noite.profundo_min !== null ? (
+                    <p>Profundo {formatDuration(noite.profundo_min * 60)}</p>
+                  ) : null}
+                  {noite.rem_min !== null ? (
+                    <p>REM {formatDuration(noite.rem_min * 60)}</p>
+                  ) : null}
+                  {noite.despertares !== null ? (
+                    <p>{noite.despertares} despertar(es)</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {mediaSono7 !== null
+                ? `Média de ${formatDuration(Math.round(mediaSono7) * 60)} nos últimos 7 dias.`
+                : "Sem noites registradas nos últimos 7 dias."}
+            </p>
+
+            <Link
+              href="/dashboard/saude/sono"
+              className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline"
+            >
+              Ver histórico de sono
               <ArrowRight className="size-3.5" />
             </Link>
           </CardContent>

@@ -4,6 +4,7 @@ namespace App\Services\Saude;
 
 use App\Models\SaudeCardioSessao;
 use App\Models\SaudeDiaGarmin;
+use App\Models\SaudeSono;
 use App\Models\SaudeTreino;
 use App\Models\SaudeTreinoSessao;
 use App\Models\User;
@@ -51,7 +52,7 @@ class GarminImportService
     /**
      * Importa a janela dos últimos `dias` dias.
      *
-     * @return array{cardio: int, treinos: int, dias: int, ignorados: int}
+     * @return array{cardio: int, treinos: int, dias: int, sono: int, ignorados: int}
      */
     public function sincronizar(?int $dias = null): array
     {
@@ -63,6 +64,7 @@ class GarminImportService
 
         $resultado = $this->importarAtividades($user, $de, $ate);
         $resultado['dias'] = $this->importarDias($user, $de, $ate);
+        $resultado['sono'] = $this->importarSono($user, $de, $ate);
 
         return $resultado;
     }
@@ -215,6 +217,79 @@ class GarminImportService
         }
 
         return $importados;
+    }
+
+    /**
+     * Uma noite por dia da janela. Diferente das outras importações, esta cede
+     * para o usuário: noite marcada como `manual` foi corrigida à mão e não é
+     * sobrescrita — senão o job horário desfaria a correção na passada seguinte.
+     */
+    private function importarSono(User $user, string $de, string $ate): int
+    {
+        $manuais = SaudeSono::query()
+            ->where('user_id', $user->id)
+            ->whereBetween('data', [$de, $ate])
+            ->where('origem', 'manual')
+            ->pluck('data')
+            ->map(fn ($data) => CarbonImmutable::parse($data)->toDateString())
+            ->all();
+
+        $importados = 0;
+
+        for (
+            $dia = CarbonImmutable::parse($de);
+            $dia->lessThanOrEqualTo(CarbonImmutable::parse($ate));
+            $dia = $dia->addDay()
+        ) {
+            $data = $dia->toDateString();
+
+            if (in_array($data, $manuais, true)) {
+                continue;
+            }
+
+            $noite = $this->garmin->sono($data);
+            $duracao = $this->minutosDeSegundos($noite['duracao_seg'] ?? null);
+
+            // Sem duração não houve noite medida (relógio fora do pulso, ou o
+            // dia de hoje antes de dormir) — não vira linha em branco.
+            if ($noite === null || $duracao === null || $duracao === 0) {
+                continue;
+            }
+
+            SaudeSono::updateOrCreate(
+                ['user_id' => $user->id, 'data' => $data],
+                [
+                    'duracao_min' => $duracao,
+                    'profundo_min' => $this->minutosDeSegundos($noite['profundo_seg'] ?? null),
+                    'leve_min' => $this->minutosDeSegundos($noite['leve_seg'] ?? null),
+                    'rem_min' => $this->minutosDeSegundos($noite['rem_seg'] ?? null),
+                    'acordado_min' => $this->minutosDeSegundos($noite['acordado_seg'] ?? null),
+                    'cochilo_min' => $this->minutosDeSegundos($noite['cochilo_seg'] ?? null),
+                    'despertares' => $noite['despertares'] ?? null,
+                    'score' => $noite['score'] ?? null,
+                    'score_qualificador' => $noite['score_qualificador'] ?? null,
+                    'inicio' => $noite['inicio_local'] ?? null,
+                    'fim' => $noite['fim_local'] ?? null,
+                    'hrv_medio' => $this->decimal($noite['hrv_medio'] ?? null),
+                    'estresse_medio' => $this->decimal($noite['estresse_medio'] ?? null),
+                    'origem' => 'garmin',
+                ],
+            );
+            $importados++;
+        }
+
+        return $importados;
+    }
+
+    private function minutosDeSegundos(mixed $segundos): ?int
+    {
+        return $segundos === null ? null : (int) round(((float) $segundos) / 60);
+    }
+
+    /** O cast `decimal` do Eloquent deprecia float; string entra sem reclamar. */
+    private function decimal(mixed $valor): ?string
+    {
+        return $valor === null ? null : (string) round((float) $valor, 1);
     }
 
     /** @param  array<string, mixed>  $atividade */

@@ -31,11 +31,14 @@ export function useGarminAutoSync(onImported: () => void | Promise<void>) {
           return;
         }
 
-        const importadas = (resultado.cardio ?? 0) + (resultado.treinos ?? 0);
-        if (importadas > 0) {
-          appToast.success(
-            `Garmin: ${importadas} atividade(s) importada(s).`,
-          );
+        const atividades = (resultado.cardio ?? 0) + (resultado.treinos ?? 0);
+        if (atividades > 0) {
+          appToast.success(`Garmin: ${atividades} atividade(s) importada(s).`);
+        }
+
+        // Sono conta para o recarregamento mas não para o toast: ele não é
+        // "atividade", e a tela de sono precisa se atualizar mesmo sem treino.
+        if (atividades + (resultado.sono ?? 0) > 0) {
           await onImportedRef.current();
         }
       } catch {

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SaudeCardioSessao;
 use App\Models\SaudeDiaGarmin;
+use App\Models\SaudeSono;
 use App\Models\SaudeTreino;
 use App\Models\SaudeTreinoSessao;
 use App\Models\User;
@@ -108,6 +109,82 @@ class GarminSyncTest extends TestCase
         $this->assertSame(414, $dia->calorias_ativas);
         $this->assertSame(2611, $dia->calorias_totais);
         $this->assertSame(8344, $dia->passos);
+    }
+
+    public function test_importa_a_noite_de_sono(): void
+    {
+        $this->usuarioGarmin();
+        $this->fakeSidecar([]);
+
+        $resultado = app(GarminImportService::class)->sincronizar(1);
+
+        $this->assertSame(1, $resultado['sono']);
+
+        $noite = SaudeSono::sole();
+        $this->assertSame(312, $noite->duracao_min); // 18720s -> 5h12
+        $this->assertSame(26, $noite->profundo_min);
+        $this->assertSame(286, $noite->leve_min);
+        $this->assertSame(0, $noite->rem_min);
+        $this->assertSame(19, $noite->acordado_min);
+        $this->assertSame(52, $noite->score);
+        $this->assertSame('POOR', $noite->score_qualificador);
+        $this->assertSame(1, $noite->despertares);
+        $this->assertSame('00:35', substr((string) $noite->inicio, 0, 5));
+        $this->assertSame('06:06', substr((string) $noite->fim, 0, 5));
+        $this->assertSame('garmin', $noite->origem);
+    }
+
+    public function test_noite_sem_medicao_nao_vira_linha_em_branco(): void
+    {
+        $this->usuarioGarmin();
+
+        Http::fake([
+            self::BASE.'/atividades*' => Http::response(['atividades' => []]),
+            self::BASE.'/dia*' => Http::response(['calorias_ativas' => 414]),
+            // Relógio fora do pulso: o sidecar responde sem duração.
+            self::BASE.'/sono*' => Http::response(['duracao_seg' => null]),
+        ]);
+
+        $resultado = app(GarminImportService::class)->sincronizar(1);
+
+        $this->assertSame(0, $resultado['sono']);
+        $this->assertSame(0, SaudeSono::count());
+    }
+
+    public function test_nao_sobrescreve_noite_lancada_a_mao(): void
+    {
+        $user = $this->usuarioGarmin();
+        $hoje = now((string) config('saude.timezone'))->toDateString();
+
+        SaudeSono::create([
+            'user_id' => $user->id,
+            'data' => $hoje,
+            'duracao_min' => 480,
+            'origem' => 'manual',
+            'observacao' => 'dormi sem o relógio',
+        ]);
+
+        $this->fakeSidecar([]);
+
+        $resultado = app(GarminImportService::class)->sincronizar(1);
+
+        $this->assertSame(0, $resultado['sono']);
+
+        $noite = SaudeSono::sole();
+        $this->assertSame(480, $noite->duracao_min);
+        $this->assertSame('manual', $noite->origem);
+    }
+
+    public function test_reimportar_a_mesma_noite_nao_duplica(): void
+    {
+        $this->usuarioGarmin();
+        $this->fakeSidecar([]);
+
+        $import = app(GarminImportService::class);
+        $import->sincronizar(1);
+        $import->sincronizar(1);
+
+        $this->assertSame(1, SaudeSono::count());
     }
 
     public function test_erro_401_do_sidecar_vira_mensagem_em_portugues(): void
@@ -223,6 +300,21 @@ class GarminSyncTest extends TestCase
                 'calorias_totais' => 2611,
                 'fc_repouso' => 48,
                 'minutos_intensidade' => 52,
+            ]),
+            self::BASE.'/sono*' => Http::response([
+                'duracao_seg' => 18720,
+                'profundo_seg' => 1560,
+                'leve_seg' => 17160,
+                'rem_seg' => 0,
+                'acordado_seg' => 1140,
+                'cochilo_seg' => 0,
+                'score' => 52,
+                'score_qualificador' => 'POOR',
+                'despertares' => 1,
+                'estresse_medio' => 17.0,
+                'hrv_medio' => 69.0,
+                'inicio_local' => '00:35',
+                'fim_local' => '06:06',
             ]),
         ]);
     }

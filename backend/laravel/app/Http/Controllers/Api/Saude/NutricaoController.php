@@ -45,8 +45,10 @@ class NutricaoController extends Controller
 
     /**
      * Somatório diário dos últimos N dias (dias sem registro entram zerados).
+     * O sono da noite entra junto para dar para cruzar noite ruim com adesão
+     * à dieta — e fica `null`, não zero: dia sem medição não é noite em claro.
      *
-     * @return list<array{data: string, calorias: int, proteinas_g: float}>
+     * @return list<array{data: string, calorias: int, proteinas_g: float, sono_min: int|null}>
      */
     private function historico(int $userId, string $ate): array
     {
@@ -60,14 +62,22 @@ class NutricaoController extends Controller
             ->get()
             ->keyBy(fn ($linha) => substr((string) $linha->data, 0, 10));
 
+        $sonoPorDia = DB::table('saude_sonos')
+            ->where('user_id', $userId)
+            ->whereBetween('data', [$inicio, $ate])
+            ->get(['data', 'duracao_min'])
+            ->keyBy(fn ($linha) => substr((string) $linha->data, 0, 10));
+
         $historico = [];
         for ($i = self::DIAS_HISTORICO - 1; $i >= 0; $i--) {
             $dia = Carbon::parse($ate)->subDays($i)->toDateString();
             $linha = $porDia->get($dia);
+            $sono = $sonoPorDia->get($dia);
             $historico[] = [
                 'data' => $dia,
                 'calorias' => (int) ($linha->calorias ?? 0),
                 'proteinas_g' => round((float) ($linha->proteinas_g ?? 0), 1),
+                'sono_min' => $sono !== null ? (int) $sono->duracao_min : null,
             ];
         }
 

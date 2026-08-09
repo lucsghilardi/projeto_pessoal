@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Line,
   LineChart,
   ReferenceLine,
@@ -42,6 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   formatDate,
+  formatDuration,
   formatFullDate,
   formatKg,
   shiftDay,
@@ -158,7 +159,12 @@ export default function CaloriasPage() {
       : null;
 
   const historicoChart = useMemo(
-    () => overview?.historico ?? [],
+    () =>
+      (overview?.historico ?? []).map((dia) => ({
+        ...dia,
+        // Horas para o eixo da direita; null (não 0) em dia sem medição.
+        sono_h: dia.sono_min !== null ? dia.sono_min / 60 : null,
+      })),
     [overview],
   );
 
@@ -451,15 +457,16 @@ export default function CaloriasPage() {
           <CardHeader>
             <CardTitle>Últimos 14 dias</CardTitle>
             <CardDescription>
-              Clique em um dia para abri-lo acima
+              Clique em um dia para abri-lo acima. A linha roxa é o sono da noite
+              — noite curta costuma aparecer como dia de fome
               {metaCalorias !== null
-                ? ` — a linha tracejada marca a meta de ${kcal(metaCalorias)} kcal.`
+                ? `; a tracejada marca a meta de ${kcal(metaCalorias)} kcal.`
                 : "."}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
+              <ComposedChart
                 data={historicoChart}
                 margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
                 className="cursor-pointer"
@@ -482,12 +489,33 @@ export default function CaloriasPage() {
                   axisLine={false}
                   fontSize={12}
                 />
-                <YAxis tickLine={false} axisLine={false} width={44} fontSize={12} />
+                <YAxis
+                  yAxisId="kcal"
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                  fontSize={12}
+                />
+                {/* Eixo próprio para o sono: em horas, ele some no range de kcal. */}
+                <YAxis
+                  yAxisId="sono"
+                  orientation="right"
+                  domain={[0, 12]}
+                  tickLine={false}
+                  axisLine={false}
+                  width={30}
+                  fontSize={12}
+                  tickFormatter={(v) => `${v}h`}
+                />
                 <RechartsTooltip
-                  formatter={(value) => [`${kcal(Number(value))} kcal`, "Consumido"]}
+                  formatter={(value, name) =>
+                    name === "sono_h"
+                      ? [formatDuration(Number(value) * 3600), "Dormiu"]
+                      : [`${kcal(Number(value))} kcal`, "Consumido"]
+                  }
                   labelFormatter={(label) => formatFullDate(String(label))}
                 />
-                <Bar dataKey="calorias" radius={[4, 4, 0, 0]}>
+                <Bar yAxisId="kcal" dataKey="calorias" radius={[4, 4, 0, 0]}>
                   {historicoChart.map((ponto) => {
                     const selecionado = ponto.data.slice(0, 10) === dia;
 
@@ -506,10 +534,25 @@ export default function CaloriasPage() {
                     );
                   })}
                 </Bar>
+                {/* connectNulls: noite sem medição não vira zero, o traço só pula. */}
+                <Line
+                  yAxisId="sono"
+                  type="monotone"
+                  dataKey="sono_h"
+                  stroke="#818cf8"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
                 {metaCalorias !== null ? (
-                  <ReferenceLine y={metaCalorias} stroke="#f59e0b" strokeDasharray="6 4" />
+                  <ReferenceLine
+                    yAxisId="kcal"
+                    y={metaCalorias}
+                    stroke="#f59e0b"
+                    strokeDasharray="6 4"
+                  />
                 ) : null}
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

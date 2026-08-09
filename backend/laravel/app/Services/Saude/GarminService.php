@@ -62,6 +62,19 @@ class GarminService
         return $resposta->json();
     }
 
+    /**
+     * A noite que terminou nesta data (o Garmin indexa o sono pelo dia em que
+     * se acordou), ou null quando o Garmin não tem o dia.
+     */
+    public function sono(string $data): ?array
+    {
+        $resposta = $this->request()->get('/sono', ['data' => $data]);
+
+        $this->garantirSucesso($resposta);
+
+        return $resposta->json();
+    }
+
     private function request(): PendingRequest
     {
         return Http::baseUrl((string) config('garmin.base_url'))

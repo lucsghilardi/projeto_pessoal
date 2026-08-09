@@ -149,6 +149,7 @@ export type SaudeGarminSync = {
   cardio: number;
   treinos: number;
   dias: number;
+  sono: number;
   ignorados: number;
 };
 
@@ -159,6 +160,7 @@ export type SaudeGarminAutoSync = {
   cardio?: number;
   treinos?: number;
   dias?: number;
+  sono?: number;
   ignorados?: number;
 };
 
@@ -188,6 +190,54 @@ export type SaudePesoPayload = {
   observacao?: string | null;
 };
 
+/** "POOR" | "FAIR" | "GOOD" | "EXCELLENT" — vocabulário do próprio Garmin. */
+export type SaudeSonoQualificador = "POOR" | "FAIR" | "GOOD" | "EXCELLENT";
+
+/**
+ * Uma noite. `data` é o dia em que se ACORDOU (convenção do Garmin): a noite
+ * de 07 para 08 é o registro do dia 08.
+ */
+export type SaudeSono = {
+  id: number;
+  /** "YYYY-MM-DD" */
+  data: string;
+  /** Sono efetivo, já sem os despertares. */
+  duracao_min: number;
+  profundo_min: number | null;
+  leve_min: number | null;
+  rem_min: number | null;
+  acordado_min: number | null;
+  cochilo_min: number | null;
+  despertares: number | null;
+  /** 0-100, calculado pelo Garmin. Null em noite lançada à mão. */
+  score: number | null;
+  score_qualificador: SaudeSonoQualificador | null;
+  /** "HH:MM:SS" vindo do backend — exibir com .slice(0, 5). */
+  inicio: string | null;
+  fim: string | null;
+  /** Decimais serializados como string (ex.: "69.0"). */
+  hrv_medio: string | null;
+  estresse_medio: string | null;
+  origem: "manual" | "garmin";
+  observacao: string | null;
+};
+
+export type SaudeSonoPayload = {
+  data: string;
+  duracao_min: number;
+  profundo_min?: number | null;
+  leve_min?: number | null;
+  rem_min?: number | null;
+  acordado_min?: number | null;
+  cochilo_min?: number | null;
+  despertares?: number | null;
+  score?: number | null;
+  /** "HH:MM" */
+  inicio?: string | null;
+  fim?: string | null;
+  observacao?: string | null;
+};
+
 export type SaudeNivelAtividade =
   | "sedentario"
   | "leve"
@@ -200,6 +250,8 @@ export type SaudeMeta = {
   peso_meta_kg: string | null;
   data_alvo: string | null;
   altura_cm: number | null;
+  /** Meta de sono por noite, em minutos (450 = 7h30). */
+  sono_meta_min: number | null;
   sexo: "M" | "F" | null;
   /** "YYYY-MM-DD" */
   data_nascimento: string | null;
@@ -218,6 +270,7 @@ export type SaudeMetaPayload = {
   peso_meta_kg?: number | null;
   data_alvo?: string | null;
   altura_cm?: number | null;
+  sono_meta_min?: number | null;
   sexo?: "M" | "F" | null;
   data_nascimento?: string | null;
   nivel_atividade?: SaudeNivelAtividade | null;
@@ -334,8 +387,16 @@ export type SaudeNutricaoOverview = {
   refeicoes: SaudeRefeicao[];
   /** Calorias gastas em exercício no dia (0 com gasto dinâmico desligado). */
   gasto_exercicio: number;
-  /** Últimos 14 dias terminando no dia consultado; dias vazios zerados. */
-  historico: Array<{ data: string; calorias: number; proteinas_g: number }>;
+  /**
+   * Últimos 14 dias terminando no dia consultado; dias vazios zerados.
+   * `sono_min` é null (não zero) quando não houve noite medida.
+   */
+  historico: Array<{
+    data: string;
+    calorias: number;
+    proteinas_g: number;
+    sono_min: number | null;
+  }>;
 };
 
 export type SaudeNutricaoProjecao = {
@@ -372,5 +433,12 @@ export type SaudeOverview = {
     /** Últimos 30 registros em ordem cronológica (sparkline). */
     recentes: Array<Pick<SaudePeso, "id" | "data" | "peso_kg">>;
     meta: SaudeMeta;
+  };
+  sono: {
+    /** A noite que terminou no dia consultado. */
+    noite: SaudeSono | null;
+    /** Últimos 30 dias em ordem cronológica (sparkline). */
+    recentes: Array<Pick<SaudeSono, "id" | "data" | "duracao_min" | "score">>;
+    meta_min: number | null;
   };
 };
