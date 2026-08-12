@@ -118,7 +118,7 @@ class AiReceiptController extends Controller
             'receipt_path' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'gt:0'],
-            'date' => ['required', 'date'],
+            'date' => ['required', 'date_format:Y-m-d'],
             'category_id' => [
                 'nullable', 'integer',
                 Rule::exists('finance_categories', 'id')->where('user_id', $userId),
@@ -174,7 +174,7 @@ class AiReceiptController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['present', 'nullable', 'string', 'max:255'],
             'items.*.amount' => ['required', 'numeric'],
-            'items.*.date' => ['required', 'date'],
+            'items.*.date' => ['required', 'date_format:Y-m-d'],
         ]);
 
         $resolver = $data['destination'] === 'cartao'
@@ -209,7 +209,7 @@ class AiReceiptController extends Controller
             'items.*.description' => ['required', 'string', 'max:255'],
             // Aceita negativos: estornos/créditos de fatura entram como amount negativo.
             'items.*.amount' => ['required', 'numeric'],
-            'items.*.date' => ['required', 'date'],
+            'items.*.date' => ['required', 'date_format:Y-m-d'],
             'items.*.category_id' => [
                 'nullable', 'integer',
                 Rule::exists('finance_categories', 'id')->where('user_id', $userId),

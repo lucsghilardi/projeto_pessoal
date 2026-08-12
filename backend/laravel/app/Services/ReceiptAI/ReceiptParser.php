@@ -257,13 +257,45 @@ TXT;
 
         return [
             'amount' => isset($item['amount']) ? round((float) $item['amount'], 2) : null,
-            'purchase_date' => $item['purchase_date'] ?? null,
+            'purchase_date' => $this->normalizeDate($item['purchase_date'] ?? null),
             'description' => $item['description'] ?? null,
             'payment_method' => $method,
             'installments_total' => $installments,
             'category_id' => $categoryId !== null ? (int) $categoryId : null,
             'confidence' => $item['confidence'] ?? 'baixa',
         ];
+    }
+
+    /**
+     * A data é o campo mais perigoso do comprovante: o schema só PEDE
+     * YYYY-MM-DD, e quando a IA devolve o formato do cupom (11/08/2026) o
+     * Carbon lê como mês/dia/ano e joga a compra para 8 de novembro — o
+     * lançamento existe, mas some da tela do mês corrente.
+     *
+     * Aceita ISO e dd/mm/aaaa (com barra, ponto ou hífen); qualquer outra coisa
+     * vira null, e quem chama usa a data de hoje.
+     */
+    private function normalizeDate(mixed $valor): ?string
+    {
+        if (! is_string($valor)) {
+            return null;
+        }
+
+        $valor = trim($valor);
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $valor, $m)) {
+            return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $valor : null;
+        }
+
+        if (preg_match('#^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$#', $valor, $m)) {
+            [$dia, $mes, $ano] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+
+            return checkdate($mes, $dia, $ano)
+                ? sprintf('%04d-%02d-%02d', $ano, $mes, $dia)
+                : null;
+        }
+
+        return null;
     }
 
     private function normalizeImageMime(string $mime): string

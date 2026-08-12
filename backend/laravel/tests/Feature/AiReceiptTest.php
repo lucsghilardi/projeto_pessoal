@@ -9,9 +9,12 @@ use App\Models\FinanceCategory;
 use App\Models\Payable;
 use App\Models\User;
 use App\Services\Finance\ReceiptEntryService;
+use App\Services\ReceiptAI\ReceiptParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -167,6 +170,80 @@ class AiReceiptTest extends TestCase
             $this->assertSame(0, Payable::count());
             $this->assertEquals(1000.00, $contaAlheia->fresh()->balance);
         }
+    }
+
+    /**
+     * Data no formato do cupom brasileiro não pode virar outro mês. Carbon lê
+     * "11/08/2026" como mês/dia/ano (8 de novembro) — o lançamento existia, mas
+     * sumia da tela do mês corrente.
+     *
+     * @param  array{0: string|null, 1: string|null}  $caso  [o que a IA devolveu, o que deve ser gravado]
+     */
+    #[DataProvider('datasDeComprovante')]
+    public function test_data_do_comprovante_e_normalizada_para_iso(?string $daIa, ?string $esperado): void
+    {
+        $user = User::factory()->create();
+        $categorias = collect([['id' => 1, 'name' => 'Mercado']]);
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(['content' => [[
+                'type' => 'tool_use',
+                'input' => [
+                    'document_type' => 'comprovante',
+                    'items' => [[
+                        'amount' => 5.50,
+                        'purchase_date' => $daIa,
+                        'description' => 'Coca-Cola',
+                        'payment_method' => 'pix',
+                        'confidence' => 'alta',
+                    ]],
+                ],
+            ]]]),
+        ]);
+        config(['services.anthropic.key' => 'k']);
+
+        $resultado = app(ReceiptParser::class)->parse('bytes', 'image/jpeg', 'jpg', $categorias);
+
+        $this->assertSame($esperado, $resultado['items'][0]['purchase_date']);
+        unset($user);
+    }
+
+    /**
+     * @return array<string, array{0: string|null, 1: string|null}>
+     */
+    public static function datasDeComprovante(): array
+    {
+        return [
+            'iso passa direto' => ['2026-08-11', '2026-08-11'],
+            'cupom com barra' => ['11/08/2026', '2026-08-11'],
+            'cupom com ponto' => ['11.08.2026', '2026-08-11'],
+            'cupom com hifen' => ['11-08-2026', '2026-08-11'],
+            'dia sem zero' => ['1/8/2026', '2026-08-01'],
+            'data impossivel' => ['31/02/2026', null],
+            'lixo vira nulo' => ['ontem', null],
+            'ausente' => [null, null],
+        ];
+    }
+
+    public function test_confirm_recusa_data_fora_do_formato_iso(): void
+    {
+        $user = User::factory()->create();
+        $conta = $this->conta($user, 'Itaú', 1000.00);
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($user))
+            ->postJson('/api/finance/ai-receipt/confirm', [
+                'destination' => 'conta',
+                'receipt_path' => $this->comprovante($user),
+                'description' => 'Coca-Cola',
+                'amount' => 5.50,
+                'date' => '11/08/2026',
+                'bank_account_id' => $conta->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('date');
+
+        $this->assertSame(0, Payable::count());
+        $this->assertEquals(1000.00, $conta->fresh()->balance);
     }
 
     private function bearerTokenFor(User $user): string
