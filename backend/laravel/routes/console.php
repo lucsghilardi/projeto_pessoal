@@ -3,6 +3,7 @@
 use App\Jobs\EnviarLembretesSuplementos;
 use App\Jobs\GerarRelatorioDiario;
 use App\Jobs\GerarResumoMatinal;
+use App\Jobs\LimparAnexosWhatsappOrfaos;
 use App\Jobs\SincronizarGarmin;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -26,6 +27,12 @@ Schedule::job(new GerarRelatorioDiario)
 // check-in no dia. O job calcula "hoje" em config('saude.timezone') e não
 // reenvia o mesmo lembrete (tabela saude_lembretes).
 Schedule::job(new EnviarLembretesSuplementos)->everyFiveMinutes();
+
+// Módulo WhatsApp: apaga fotos que ficaram no staging (whatsapp/pendentes) sem
+// nunca virar refeição ou comprovante — conversa abandonada ou worker morto.
+Schedule::job(new LimparAnexosWhatsappOrfaos)
+    ->dailyAt('04:00')
+    ->timezone((string) config('whatsapp.relatorio.timezone'));
 
 // Módulo Saúde: importa as atividades do Garmin Connect pelo sidecar `garmin`.
 // Reprocessa a janela de config('garmin.dias_janela') dias — o dedupe por

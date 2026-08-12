@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class WhatsappInstancia extends Model
 {
@@ -19,6 +20,7 @@ class WhatsappInstancia extends Model
         'gtd_ativo',
         'calorias_foto_ativo',
         'calorias_texto_ia',
+        'financeiro_ativo',
         'relatorio_diario_ativo',
         'resumo_matinal_ativo',
     ];
@@ -27,6 +29,7 @@ class WhatsappInstancia extends Model
         'gtd_ativo' => 'boolean',
         'calorias_foto_ativo' => 'boolean',
         'calorias_texto_ia' => 'boolean',
+        'financeiro_ativo' => 'boolean',
         'relatorio_diario_ativo' => 'boolean',
         'resumo_matinal_ativo' => 'boolean',
     ];
@@ -44,5 +47,10 @@ class WhatsappInstancia extends Model
     public function mensagens(): HasMany
     {
         return $this->hasMany(WhatsappMensagem::class, 'instancia_id');
+    }
+
+    public function conversa(): HasOne
+    {
+        return $this->hasOne(WhatsappConversa::class, 'instancia_id');
     }
 }

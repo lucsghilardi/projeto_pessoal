@@ -15,7 +15,9 @@ class SaudeNutricaoAI
     private const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
     private const TIPOS_REFEICAO = ['cafe_da_manha', 'almoco', 'jantar', 'lanche', 'outro'];
+
     private const NIVEIS_CONFIANCA = ['alta', 'media', 'baixa'];
+
     private const MAX_CALORIAS_REFEICAO = 5000;
 
     /**
@@ -68,9 +70,10 @@ class SaudeNutricaoAI
     }
 
     /**
-     * Modo "IA decide" do chat consigo mesmo: classifica a nota como refeição
-     * (diário alimentar) ou tarefa (GTD) em uma única chamada. Em falha da IA a
-     * nota NUNCA se perde: vira tarefa com o mesmo fallback cru do GTD.
+     * Roteador do chat consigo mesmo: classifica a nota como refeição (diário
+     * alimentar), tarefa (GTD) ou 'indefinido' — quando nem a IA sabe dizer, o
+     * assistente pergunta em vez de chutar. Em falha da IA a nota NUNCA se
+     * perde: vira proposta de tarefa com o mesmo fallback cru do GTD.
      *
      * @return array{tipo: string, refeicao: array<string, mixed>|null, tarefa: array{titulo: string, descricao: string|null, prioridade: string, due_date: string|null}|null}
      */
@@ -94,6 +97,12 @@ class SaudeNutricaoAI
             if ($refeicao['e_comida']) {
                 return ['tipo' => 'refeicao', 'refeicao' => $refeicao, 'tarefa' => null];
             }
+        }
+
+        // Indefinido só vale se a IA também não arriscou uma tarefa; com título
+        // em mãos é melhor propor e deixar você corrigir do que abrir um menu.
+        if ($tipo === 'indefinido' && ! is_array($payload['tarefa'] ?? null)) {
+            return ['tipo' => 'indefinido', 'refeicao' => null, 'tarefa' => null];
         }
 
         $tarefa = is_array($payload['tarefa'] ?? null)
@@ -140,7 +149,8 @@ TXT;
 O Lucas manda mensagens para si mesmo no WhatsApp por dois motivos: registrar o que COMEU (diário alimentar) ou capturar uma tarefa/nota rápida (GTD). Agora é {$agora}.
 Classifique a nota e chame a ferramenta processar_nota:
 - tipo 'refeicao': a nota descreve comida ou bebida que ele CONSUMIU ("2 ovos e café", "almocei PF com bife", "1 whey com banana").
-- tipo 'tarefa': todo o resto — lembretes, ideias, compromissos. Atenção: comida como OBJETO de ação é tarefa ("comprar ovos", "marcar nutricionista", "pesquisar receita de frango").
+- tipo 'tarefa': lembretes, ideias, compromissos. Atenção: comida como OBJETO de ação é tarefa ("comprar ovos", "marcar nutricionista", "pesquisar receita de frango").
+- tipo 'indefinido': a nota é curta ou vaga demais para virar qualquer um dos dois ("ok", "aquilo de ontem", "hmm", "?"). Use com parcimônia — só quando não houver nem tarefa plausível a propor. Nesse caso deixe refeicao e tarefa nulos.
 
 Se refeicao, preencha o objeto refeicao como um nutricionista experiente: nome curto do prato, tipo (cafe_da_manha|almoco|jantar|lanche|outro, use o horário como pista), itens com porções em medidas caseiras brasileiras e calorias/proteínas por item, totais coerentes e confianca (alta|media|baixa). Na dúvida, estime calorias para cima. e_comida: true.
 Se tarefa, preencha o objeto tarefa: titulo curto no imperativo sem datas, descricao com detalhes extras ou null, prioridade ('urgent' só com urgência explícita; senão 'high', 'medium' padrão ou 'low'), due_date YYYY-MM-DD se a nota citar prazo relativo a hoje, senão null.
@@ -166,11 +176,11 @@ TXT;
     {
         return [
             'name' => 'processar_nota',
-            'description' => 'Classifica uma nota do WhatsApp como refeição consumida ou tarefa, com os dados estruturados correspondentes.',
+            'description' => 'Classifica uma nota do WhatsApp como refeição consumida, tarefa ou indefinida, com os dados estruturados correspondentes.',
             'input_schema' => [
                 'type' => 'object',
                 'properties' => [
-                    'tipo' => ['type' => 'string', 'enum' => ['refeicao', 'tarefa']],
+                    'tipo' => ['type' => 'string', 'enum' => ['refeicao', 'tarefa', 'indefinido']],
                     'refeicao' => [
                         'type' => ['object', 'null'],
                         'properties' => $this->schemaRefeicaoProperties(),

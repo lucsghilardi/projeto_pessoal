@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\Finance;
 
 use App\Http\Controllers\Controller;
-use App\Models\BankAccount;
 use App\Models\CreditCard;
 use App\Models\CreditCardTransaction;
 use App\Models\FinanceCategory;
 use App\Models\Payable;
+use App\Services\Finance\ReceiptEntryService;
 use App\Services\ReceiptAI\ReceiptParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -109,7 +109,7 @@ class AiReceiptController extends Controller
     /**
      * Persiste UM lançamento revisado (comprovante avulso) no destino escolhido.
      */
-    public function confirm(Request $request): JsonResponse
+    public function confirm(Request $request, ReceiptEntryService $entries): JsonResponse
     {
         $userId = $request->user()->id;
 
@@ -140,17 +140,15 @@ class AiReceiptController extends Controller
             return response()->json(['message' => 'Comprovante inválido. Reenvie o arquivo.'], 422);
         }
 
-        $fingerprint = self::fingerprint($data['description'], $data['amount'], $data['date']);
+        $fingerprint = ReceiptEntryService::fingerprint($data['description'], $data['amount'], $data['date']);
 
-        if ($this->isDuplicate($userId, $data, $fingerprint)) {
+        if ($entries->isDuplicate($userId, $data, $fingerprint)) {
             return response()->json([
                 'message' => 'Lançamento idêntico já existe (mesma descrição, valor e data).',
             ], 422);
         }
 
-        $created = $data['destination'] === 'cartao'
-            ? $this->storeCardTransaction($userId, $data, $receiptPath, $fingerprint)
-            : $this->storePayable($userId, $data, $receiptPath, $fingerprint);
+        $created = $entries->lancar($userId, $data, $receiptPath)['quantidade'];
 
         return response()->json(['message' => 'Lançamento criado.', 'created' => $created], 201);
     }
@@ -251,7 +249,7 @@ class AiReceiptController extends Controller
 
         DB::transaction(function () use ($card, $userId, $data, $receiptPath, &$created, &$skipped, &$remaining) {
             foreach ($data['items'] as $item) {
-                $fingerprint = self::fingerprint($item['description'], $item['amount'], $item['date']);
+                $fingerprint = ReceiptEntryService::fingerprint($item['description'], $item['amount'], $item['date']);
 
                 if (($remaining[$fingerprint] ?? 0) > 0) {
                     $remaining[$fingerprint]--;
@@ -298,7 +296,7 @@ class AiReceiptController extends Controller
 
         DB::transaction(function () use ($userId, $accountId, $data, $receiptPath, &$created, &$skipped, &$remaining) {
             foreach ($data['items'] as $item) {
-                $fingerprint = self::fingerprint($item['description'], $item['amount'], $item['date']);
+                $fingerprint = ReceiptEntryService::fingerprint($item['description'], $item['amount'], $item['date']);
 
                 if (($remaining[$fingerprint] ?? 0) > 0) {
                     $remaining[$fingerprint]--;
@@ -341,7 +339,7 @@ class AiReceiptController extends Controller
     private function flagDuplicates(array $items, \Closure $countResolver): array
     {
         $fingerprints = array_map(
-            fn ($item) => self::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
+            fn ($item) => ReceiptEntryService::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
             $items
         );
 
@@ -366,7 +364,7 @@ class AiReceiptController extends Controller
     private function fingerprintsOf(array $items): array
     {
         return array_values(array_unique(array_map(
-            fn ($item) => self::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
+            fn ($item) => ReceiptEntryService::fingerprint($item['description'] ?? null, $item['amount'], $item['date']),
             $items
         )));
     }
@@ -406,109 +404,6 @@ class AiReceiptController extends Controller
     }
 
     /**
-     * Cria a(s) transação(ões) de cartão na fatura correta — espelha CreditCardTransactionController::store.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private function storeCardTransaction(int $userId, array $data, string $receiptPath, string $fingerprint): int
-    {
-        $card = CreditCard::query()->where('user_id', $userId)->findOrFail($data['credit_card_id']);
-        $purchase = Carbon::parse($data['date'])->startOfDay();
-        $total = (int) ($data['installments_total'] ?? 1);
-
-        $firstRef = $data['reference_month'] ?? $card->resolveInvoiceWindow($purchase)['reference_month'];
-
-        $base = [
-            'user_id' => $userId,
-            'credit_card_id' => $card->id,
-            'category_id' => $data['category_id'] ?? null,
-            'description' => $data['description'],
-            'amount' => $data['amount'],
-            'purchase_date' => $purchase->toDateString(),
-            'receipt_path' => $receiptPath,
-            'import_fingerprint' => $fingerprint,
-        ];
-
-        $count = 0;
-
-        DB::transaction(function () use ($card, $base, $total, $firstRef, &$count) {
-            if ($total >= 2) {
-                $group = (string) Str::uuid();
-                for ($i = 0; $i < $total; $i++) {
-                    $invoice = $card->invoiceForReferenceMonth($this->shiftReference($firstRef, $i));
-                    CreditCardTransaction::create([
-                        ...$base,
-                        'credit_card_invoice_id' => $invoice->id,
-                        'installment_number' => $i + 1,
-                        'installments_total' => $total,
-                        'group_id' => $group,
-                    ]);
-                    $count++;
-                }
-            } else {
-                $invoice = $card->invoiceForReferenceMonth($firstRef);
-                CreditCardTransaction::create([
-                    ...$base,
-                    'credit_card_invoice_id' => $invoice->id,
-                ]);
-                $count = 1;
-            }
-        });
-
-        return $count;
-    }
-
-    /**
-     * Cria a conta a pagar JÁ PAGA, debitando o saldo da conta — espelha PayableController::pay.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private function storePayable(int $userId, array $data, string $receiptPath, string $fingerprint): int
-    {
-        $date = Carbon::parse($data['date'])->startOfDay();
-
-        DB::transaction(function () use ($userId, $data, $receiptPath, $fingerprint, $date) {
-            BankAccount::whereKey($data['bank_account_id'])->decrement('balance', $data['amount']);
-
-            Payable::create([
-                'user_id' => $userId,
-                'category_id' => $data['category_id'] ?? null,
-                'description' => $data['description'],
-                'amount' => $data['amount'],
-                'due_date' => $date->toDateString(),
-                'kind' => 'avulsa',
-                'is_paid' => true,
-                'paid_at' => $date->toDateString(),
-                'bank_account_id' => $data['bank_account_id'],
-                'receipt_path' => $receiptPath,
-                'import_fingerprint' => $fingerprint,
-            ]);
-        });
-
-        return 1;
-    }
-
-    /**
-     * Verifica se um lançamento avulso idêntico já existe no destino escolhido.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private function isDuplicate(int $userId, array $data, string $fingerprint): bool
-    {
-        if ($data['destination'] === 'cartao') {
-            return CreditCardTransaction::query()
-                ->where('credit_card_id', $data['credit_card_id'])
-                ->where('import_fingerprint', $fingerprint)
-                ->exists();
-        }
-
-        return Payable::query()
-            ->where('user_id', $userId)
-            ->where('import_fingerprint', $fingerprint)
-            ->exists();
-    }
-
-    /**
      * Streama a imagem/PDF do comprovante anexado a um lançamento, checando posse.
      */
     public function download(Request $request, string $type, int $id): StreamedResponse
@@ -536,26 +431,5 @@ class AiReceiptController extends Controller
         }
 
         return $receiptPath;
-    }
-
-    /**
-     * Impressão digital de um lançamento para detectar duplicatas (descrição + valor + data).
-     */
-    private static function fingerprint(?string $description, mixed $amount, ?string $date): string
-    {
-        $normalizedDate = $date ? Carbon::parse($date)->toDateString() : '';
-
-        return sha1(
-            Str::lower(trim((string) $description))
-            .'|'.number_format((float) $amount, 2, '.', '')
-            .'|'.$normalizedDate
-        );
-    }
-
-    private function shiftReference(string $reference, int $months): string
-    {
-        [$year, $month] = array_map('intval', explode('-', $reference));
-
-        return Carbon::create($year, $month, 1)->addMonthsNoOverflow($months)->format('Y-m');
     }
 }

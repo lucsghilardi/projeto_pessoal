@@ -70,6 +70,7 @@ class InstanciaController extends Controller
             'gtd_ativo' => ['sometimes', 'boolean'],
             'calorias_foto_ativo' => ['sometimes', 'boolean'],
             'calorias_texto_ia' => ['sometimes', 'boolean'],
+            'financeiro_ativo' => ['sometimes', 'boolean'],
             'relatorio_diario_ativo' => ['sometimes', 'boolean'],
             'resumo_matinal_ativo' => ['sometimes', 'boolean'],
         ]);

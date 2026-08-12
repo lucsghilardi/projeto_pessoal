@@ -205,6 +205,7 @@ export default function WhatsappOverviewPage() {
       | "gtd_ativo"
       | "calorias_foto_ativo"
       | "calorias_texto_ia"
+      | "financeiro_ativo"
       | "relatorio_diario_ativo"
       | "resumo_matinal_ativo",
     valor: boolean,
@@ -348,13 +349,13 @@ export default function WhatsappOverviewPage() {
                 />
                 <ToggleRow
                   label="Inbox GTD"
-                  description="Mensagem enviada para você mesmo vira tarefa no kanban automaticamente."
+                  description="Texto enviado para você mesmo vira uma proposta de tarefa no chat: o assistente mostra o que entendeu e só cria depois do seu 'sim'."
                   checked={instancia.gtd_ativo}
                   onChange={(v) => handleToggle("gtd_ativo", v)}
                 />
                 <ToggleRow
                   label="Calorias por foto"
-                  description="Foto de prato enviada para você mesmo vira refeição no diário alimentar, com resposta das calorias do dia."
+                  description="Foto de prato enviada para você mesmo vira refeição no diário alimentar, depois de você confirmar a estimativa."
                   checked={instancia.calorias_foto_ativo}
                   onChange={(v) => handleToggle("calorias_foto_ativo", v)}
                 />
@@ -363,6 +364,12 @@ export default function WhatsappOverviewPage() {
                   description="Em mensagens de texto para você mesmo, a IA identifica se é uma refeição ('2 ovos e café') ou uma tarefa. Desligado, todo texto vira tarefa."
                   checked={instancia.calorias_texto_ia}
                   onChange={(v) => handleToggle("calorias_texto_ia", v)}
+                />
+                <ToggleRow
+                  label="Comprovante de pagamento"
+                  description="Foto de cupom enviada para você mesmo vira lançamento no Financeiro. O assistente lê valor, data e categoria, e pergunta em qual conta ou cartão lançar."
+                  checked={instancia.financeiro_ativo}
+                  onChange={(v) => handleToggle("financeiro_ativo", v)}
                 />
               </CardContent>
             </Card>

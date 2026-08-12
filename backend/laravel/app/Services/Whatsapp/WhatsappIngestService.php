@@ -2,11 +2,13 @@
 
 namespace App\Services\Whatsapp;
 
-use App\Jobs\ProcessarInboxGtd;
-use App\Jobs\ProcessarRefeicaoWhatsapp;
+use App\Jobs\AnalisarAnexoWhatsapp;
+use App\Jobs\ProcessarMensagemPessoal;
 use App\Models\WhatsappChat;
+use App\Models\WhatsappConversa;
 use App\Models\WhatsappInstancia;
 use App\Models\WhatsappMensagem;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -14,14 +16,19 @@ use Illuminate\Support\Str;
 /**
  * Grava no banco os eventos normalizados do webhook da Evolution. Porte enxuto
  * do ingest do Nitrogym: sem multi-grupo, sem campanhas, sem atendente virtual.
- * Extras deste projeto: mensagens enviadas para si mesmo viram tarefas (GTD)
- * e fotos de prato no mesmo chat viram refeições do diário alimentar (Saúde).
+ *
+ * Extra deste projeto: o chat consigo mesmo é um assistente — texto vira
+ * proposta de tarefa ou refeição, foto vira refeição ou comprovante, e nada é
+ * gravado antes de você confirmar. Este serviço só decide o próximo passo; a
+ * IA e a gravação ficam nos jobs.
  */
 class WhatsappIngestService
 {
-    public function __construct(private EvolutionWebhookNormalizer $normalizer)
-    {
-    }
+    public function __construct(
+        private EvolutionWebhookNormalizer $normalizer,
+        private WhatsappConversaService $conversas,
+        private WhatsappSender $sender,
+    ) {}
 
     public function resolverInstancia(string $instanceName): ?WhatsappInstancia
     {
@@ -64,6 +71,16 @@ class WhatsappIngestService
         $fromMe = (bool) ($norm['fromMe'] ?? false);
         $momment = (int) ($norm['momment'] ?? 0);
 
+        // Eco das nossas próprias mensagens. O dedupe por message_id acima não
+        // basta: se a Evolution não devolveu o id no envio, a linha 'sistema'
+        // ficou sem message_id e o eco não casa com nada. Sem esta checagem, o
+        // assistente leria a própria pergunta como resposta do usuário.
+        if ($fromMe && $this->ehEcoDaAplicacao($instancia, $conteudo)) {
+            $this->casarEcoComMensagemDoSistema($instancia, $messageId, (string) $conteudo['texto']);
+
+            return;
+        }
+
         // Base64 da mídia (webhookBase64): usado só para salvar a foto de
         // refeição — nunca vai para o raw_payload (bloat no banco).
         $mediaBase64 = (string) ($norm['image']['base64'] ?? '');
@@ -91,8 +108,7 @@ class WhatsappIngestService
 
         $this->atualizarResumoDoChat($chat, $mensagem);
 
-        $this->detectarInboxGtd($chat, $mensagem, $instancia);
-        $this->detectarRefeicao($chat, $mensagem, $instancia, $mediaBase64);
+        $this->detectarInboxPessoal($chat, $mensagem, $instancia, $mediaBase64);
     }
 
     /**
@@ -107,6 +123,42 @@ class WhatsappIngestService
         WhatsappMensagem::where('instancia_id', $instancia->id)
             ->where('message_id', $messageId)
             ->update(['status' => $status]);
+    }
+
+    /**
+     * O texto bate com algo que acabamos de enviar? Consome a marca (pull) para
+     * que uma mensagem idêntica digitada por você depois não seja descartada.
+     *
+     * @param  array<string, mixed>  $conteudo
+     */
+    private function ehEcoDaAplicacao(WhatsappInstancia $instancia, array $conteudo): bool
+    {
+        $texto = (string) ($conteudo['texto'] ?? '');
+        if ($conteudo['tipo'] !== 'text' || $texto === '') {
+            return false;
+        }
+
+        return Cache::pull(WhatsappSender::chaveEco($instancia->id, $texto)) !== null;
+    }
+
+    /**
+     * Completa o message_id da linha 'sistema' que o sender gravou sem id — sem
+     * isso ela fica órfã e o chat perde o vínculo com a mensagem real.
+     */
+    private function casarEcoComMensagemDoSistema(WhatsappInstancia $instancia, string $messageId, string $texto): void
+    {
+        if ($messageId === '') {
+            return;
+        }
+
+        $orfa = WhatsappMensagem::where('instancia_id', $instancia->id)
+            ->whereNull('message_id')
+            ->where('origem', 'sistema')
+            ->where('texto', $texto)
+            ->latest('id')
+            ->first();
+
+        $orfa?->update(['message_id' => $messageId]);
     }
 
     private function resolverChat(array $norm, WhatsappInstancia $instancia): ?WhatsappChat
@@ -194,63 +246,209 @@ class WhatsappIngestService
     }
 
     /**
-     * Inbox GTD: mensagem de texto enviada para si mesmo vira tarefa no kanban.
-     * Mensagens da aplicação (origem 'sistema') nunca chegam aqui — o dedupe
-     * por message_id as filtra antes; o prefixo ✅ é o cinto extra de segurança
-     * contra loop de confirmações.
+     * Assistente do chat consigo mesmo: texto vira proposta de tarefa/refeição,
+     * foto abre o menu "refeição ou comprovante". Nada é gravado aqui — este
+     * método só decide o próximo passo da conversa.
+     *
+     * A decisão acontece sob lock (WhatsappConversaService::transicionar) para
+     * que duas mensagens em sequência rápida não abram duas propostas. Enviar e
+     * despachar ficam FORA da transação, com a decisão já commitada.
      */
-    private function detectarInboxGtd(WhatsappChat $chat, WhatsappMensagem $mensagem, WhatsappInstancia $instancia): void
-    {
-        if (! $instancia->gtd_ativo || ! $mensagem->from_me || ! $this->ehChatComigo($chat, $instancia)) {
+    private function detectarInboxPessoal(
+        WhatsappChat $chat,
+        WhatsappMensagem $mensagem,
+        WhatsappInstancia $instancia,
+        string $mediaBase64,
+    ): void {
+        if (! $mensagem->from_me || ! $this->ehChatComigo($chat, $instancia)) {
             return;
         }
 
-        $texto = trim((string) $mensagem->texto);
-        if ($mensagem->tipo !== 'text' || $texto === '' || str_starts_with($texto, '✅')) {
+        // Cinto extra contra loop: mensagens da aplicação já são filtradas pelo
+        // dedupe e pelo hash do eco, mas um prefixo nosso nunca é entrada.
+        if ($mensagem->origem === 'sistema' || $this->pareceMensagemDoBot($mensagem)) {
             return;
         }
 
-        ProcessarInboxGtd::dispatch($mensagem->id);
+        $decisao = match ($mensagem->tipo) {
+            'text' => $this->decidirTexto($chat, $mensagem, $instancia),
+            'image' => $this->decidirImagem($chat, $mensagem, $instancia, $mediaBase64),
+            default => $this->decidirOutraMidia($mensagem, $instancia),
+        };
+
+        if ($decisao === null) {
+            return;
+        }
+
+        if (($decisao['responder'] ?? null) !== null) {
+            $this->sender->enviarParaMim($instancia, $decisao['responder']);
+        }
+
+        if (($decisao['job'] ?? null) !== null) {
+            dispatch($decisao['job']);
+        }
     }
 
     /**
-     * Diário alimentar: foto enviada para si mesmo vira refeição analisada por
-     * IA. A foto chega em base64 no webhook (webhookBase64) e é salva em disco
-     * antes de despachar o job; imagens de outros chats são descartadas.
+     * @return array{responder: string|null, job: object|null}|null
      */
-    private function detectarRefeicao(WhatsappChat $chat, WhatsappMensagem $mensagem, WhatsappInstancia $instancia, string $mediaBase64): void
+    private function decidirTexto(WhatsappChat $chat, WhatsappMensagem $mensagem, WhatsappInstancia $instancia): ?array
     {
-        if (! $instancia->calorias_foto_ativo || ! $mensagem->from_me || ! $this->ehChatComigo($chat, $instancia)) {
-            return;
+        $texto = trim((string) $mensagem->texto);
+        if ($texto === '' || ! $instancia->gtd_ativo) {
+            return null;
         }
 
-        if ($mensagem->tipo !== 'image') {
-            return;
+        return $this->conversas->transicionar($instancia, function (WhatsappConversa $conversa) use ($chat, $mensagem, $texto) {
+            if ($conversa->estado === WhatsappConversa::PROCESSANDO) {
+                return ['responder' => '⏳ Só um segundo, ainda estou terminando o anterior.', 'job' => null];
+            }
+
+            // "sim"/"não" solto sem nada pendente: resposta perdida, não é nota.
+            // Sem isso, um aceite atrasado viraria uma tarefa chamada "sim".
+            if ($conversa->estaOciosa() && WhatsappRespostaParser::ehRespostaSolta($texto)) {
+                return ['responder' => '🤷 Não tenho nada pendente por aqui.', 'job' => null];
+            }
+
+            $conversa->chat_id = $chat->id;
+            $this->conversas->marcarProcessando($conversa, $mensagem->id);
+
+            return ['responder' => null, 'job' => new ProcessarMensagemPessoal($mensagem->id)];
+        });
+    }
+
+    /**
+     * Foto: o tipo é perguntado ANTES de qualquer chamada de IA. Com só uma
+     * capacidade ligada não há o que perguntar — vai direto para o fluxo.
+     *
+     * @return array{responder: string|null, job: object|null}|null
+     */
+    private function decidirImagem(
+        WhatsappChat $chat,
+        WhatsappMensagem $mensagem,
+        WhatsappInstancia $instancia,
+        string $mediaBase64,
+    ): ?array {
+        $fluxos = array_values(array_filter([
+            $instancia->calorias_foto_ativo ? WhatsappConversa::FLUXO_REFEICAO : null,
+            $instancia->financeiro_ativo ? WhatsappConversa::FLUXO_COMPROVANTE : null,
+        ]));
+
+        if ($fluxos === []) {
+            return null;
         }
 
+        $path = $this->guardarAnexo($mensagem, $instancia, $mediaBase64);
+        if ($path === null) {
+            return null;
+        }
+
+        return $this->conversas->transicionar($instancia, function (WhatsappConversa $conversa) use ($chat, $mensagem, $path, $fluxos) {
+            // Foto sempre ganha da pendência anterior (o abrir() apaga o anexo
+            // antigo). Álbuns chegam como eventos separados: fica a última.
+            $substituiu = $conversa->anexo_path !== null;
+
+            if (count($fluxos) === 1) {
+                $this->conversas->abrir(
+                    conversa: $conversa,
+                    estado: WhatsappConversa::PROCESSANDO,
+                    fluxo: $fluxos[0],
+                    mensagemId: $mensagem->id,
+                    anexoPath: $path,
+                    chatId: $chat->id,
+                );
+
+                return [
+                    'responder' => $substituiu ? '📷 Peguei a última foto (descartei a anterior).' : null,
+                    'job' => new AnalisarAnexoWhatsapp($mensagem->id, $fluxos[0]),
+                ];
+            }
+
+            $opcoes = [
+                ['chave' => WhatsappConversa::FLUXO_REFEICAO, 'label' => 'Refeição'],
+                ['chave' => WhatsappConversa::FLUXO_COMPROVANTE, 'label' => 'Comprovante'],
+                ['chave' => 'cancelar', 'label' => 'Cancelar'],
+            ];
+
+            $this->conversas->abrir(
+                conversa: $conversa,
+                estado: WhatsappConversa::AGUARDANDO_TIPO_MIDIA,
+                mensagemId: $mensagem->id,
+                payload: ['opcoes' => $opcoes],
+                anexoPath: $path,
+                chatId: $chat->id,
+            );
+
+            $aviso = $substituiu ? "📷 Peguei a última foto (descartei a anterior).\n\n" : '';
+
+            return [
+                'responder' => $aviso.'📷 Essa foto é:  1️⃣ Refeição   2️⃣ Comprovante   3️⃣ Cancelar',
+                'job' => null,
+            ];
+        });
+    }
+
+    /**
+     * Áudio, vídeo, documento e sticker: avisa uma vez e deixa a pendência
+     * intacta — o contrário travaria a conversa esperando resposta.
+     *
+     * @return array{responder: string|null, job: object|null}|null
+     */
+    private function decidirOutraMidia(WhatsappMensagem $mensagem, WhatsappInstancia $instancia): ?array
+    {
+        if (! $instancia->gtd_ativo && ! $instancia->calorias_foto_ativo && ! $instancia->financeiro_ativo) {
+            return null;
+        }
+
+        return ['responder' => '🙉 Por enquanto só entendo texto e foto por aqui.', 'job' => null];
+    }
+
+    /**
+     * Salva a foto em staging. Só no commit ela é movida para o diretório do
+     * lançamento (refeição ou comprovante), que têm regras de posse distintas.
+     */
+    private function guardarAnexo(WhatsappMensagem $mensagem, WhatsappInstancia $instancia, string $mediaBase64): ?string
+    {
         if ($mediaBase64 === '') {
-            Log::warning('[whatsapp:calorias] imagem sem base64 no webhook — reconfigure o webhook da instância para aplicar webhookBase64.');
+            Log::warning('[whatsapp:inbox] imagem sem base64 no webhook — reconfigure o webhook da instância para aplicar webhookBase64.');
 
-            return;
+            return null;
         }
 
         $binario = base64_decode($mediaBase64, true);
         if ($binario === false || $binario === '') {
-            Log::warning("[whatsapp:calorias] base64 inválido na mensagem {$mensagem->id}.");
+            Log::warning("[whatsapp:inbox] base64 inválido na mensagem {$mensagem->id}.");
 
-            return;
+            return null;
         }
 
-        $extensao = match (strtolower((string) $mensagem->media_mime)) {
+        $path = "whatsapp/pendentes/{$instancia->user_id}/".Str::uuid().'.'.self::extensaoDoMime((string) $mensagem->media_mime);
+        Storage::disk('local')->put($path, $binario);
+
+        return $path;
+    }
+
+    public static function extensaoDoMime(string $mime): string
+    {
+        return match (strtolower(trim($mime))) {
             'image/png' => 'png',
             'image/webp' => 'webp',
             'image/gif' => 'gif',
             default => 'jpg',
         };
-        $path = "saude/refeicoes/{$instancia->user_id}/".Str::uuid().'.'.$extensao;
-        Storage::disk('local')->put($path, $binario);
+    }
 
-        ProcessarRefeicaoWhatsapp::dispatch($mensagem->id, $path);
+    private function pareceMensagemDoBot(WhatsappMensagem $mensagem): bool
+    {
+        $texto = trim((string) $mensagem->texto);
+
+        foreach ((array) config('whatsapp.conversa.prefixos_bot', []) as $prefixo) {
+            if ($prefixo !== '' && str_starts_with($texto, (string) $prefixo)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function ehChatComigo(WhatsappChat $chat, WhatsappInstancia $instancia): bool

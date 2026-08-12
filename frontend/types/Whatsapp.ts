@@ -12,6 +12,7 @@ export interface WhatsappInstancia {
   gtd_ativo: boolean;
   calorias_foto_ativo: boolean;
   calorias_texto_ia: boolean;
+  financeiro_ativo: boolean;
   relatorio_diario_ativo: boolean;
   resumo_matinal_ativo: boolean;
   created_at?: string;
@@ -23,6 +24,7 @@ export interface WhatsappInstanciaPayload {
   gtd_ativo?: boolean;
   calorias_foto_ativo?: boolean;
   calorias_texto_ia?: boolean;
+  financeiro_ativo?: boolean;
   relatorio_diario_ativo?: boolean;
   resumo_matinal_ativo?: boolean;
 }

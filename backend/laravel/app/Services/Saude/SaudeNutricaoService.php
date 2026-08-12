@@ -175,6 +175,126 @@ class SaudeNutricaoService
     }
 
     /**
+     * Grava a refeição a partir de uma análise já normalizada da IA (foto,
+     * texto do painel ou WhatsApp). O momento é passado de fora porque no
+     * WhatsApp vale o horário da mensagem original, não o da confirmação.
+     *
+     * @param  array{nome: string, tipo: string, itens: list<array<string, mixed>>, calorias: int, proteinas_g: float, carboidratos_g: float|null, gorduras_g: float|null, confianca: string}  $analise
+     */
+    public function registrarRefeicao(
+        User $user,
+        array $analise,
+        string $origem,
+        ?Carbon $momento = null,
+        ?int $whatsappMensagemId = null,
+        ?string $fotoPath = null,
+    ): SaudeRefeicao {
+        $momento ??= now(config('saude.timezone'));
+
+        return SaudeRefeicao::create([
+            'user_id' => $user->id,
+            'data' => $momento->toDateString(),
+            'horario' => $momento->format('H:i:s'),
+            'nome' => $analise['nome'],
+            'tipo' => $analise['tipo'],
+            'itens' => $analise['itens'] !== [] ? $analise['itens'] : null,
+            'calorias' => $analise['calorias'],
+            'proteinas_g' => $analise['proteinas_g'],
+            'carboidratos_g' => $analise['carboidratos_g'],
+            'gorduras_g' => $analise['gorduras_g'],
+            'confianca' => $analise['confianca'],
+            'origem' => $origem,
+            'whatsapp_mensagem_id' => $whatsappMensagemId,
+            'foto_path' => $fotoPath,
+        ]);
+    }
+
+    /**
+     * Texto da refeição para o WhatsApp: o prato + consumo do dia + quanto
+     * ainda cabe. Recebe o resumo pronto em vez de consultá-lo porque também
+     * serve a refeições ainda não gravadas — na proposta, `$resumo` vem null e
+     * só o prato é mostrado (o balanço do dia só faz sentido depois de gravar).
+     *
+     * @param  array{consumido: array<string, mixed>, metas: array<string, mixed>, restante: array<string, mixed>}|null  $resumo
+     */
+    public function textoRefeicao(SaudeRefeicao $refeicao, ?array $resumo, string $cabecalho = '🍽️'): string
+    {
+        $tipos = [
+            'cafe_da_manha' => 'Café da manhã',
+            'almoco' => 'Almoço',
+            'jantar' => 'Jantar',
+            'lanche' => 'Lanche',
+            'outro' => 'Refeição',
+        ];
+        $confiancas = ['alta' => 'alta', 'media' => 'média', 'baixa' => 'baixa'];
+
+        $tipoLabel = $tipos[$refeicao->tipo] ?? 'Refeição';
+
+        $linhas = [];
+        $conf = $refeicao->confianca !== null
+            ? ', confiança '.($confiancas[$refeicao->confianca] ?? $refeicao->confianca)
+            : '';
+        $linhas[] = "{$cabecalho} *{$tipoLabel} — {$refeicao->nome}* (~".self::kcal((int) $refeicao->calorias)." kcal{$conf})";
+
+        $macros = ['Proteínas '.self::gramas((float) $refeicao->proteinas_g)];
+        if ($refeicao->carboidratos_g !== null) {
+            $macros[] = 'Carboidratos '.self::gramas((float) $refeicao->carboidratos_g);
+        }
+        if ($refeicao->gorduras_g !== null) {
+            $macros[] = 'Gorduras '.self::gramas((float) $refeicao->gorduras_g);
+        }
+        $linhas[] = implode(' · ', $macros);
+
+        if ($resumo === null) {
+            return implode("\n", $linhas);
+        }
+
+        $consumido = $resumo['consumido'];
+        $metas = $resumo['metas'];
+        $restante = $resumo['restante'];
+
+        $linhas[] = '';
+        if ($metas['calorias'] !== null) {
+            $prot = $metas['proteinas_g'] !== null
+                ? ' · Proteínas '.self::gramas((float) $consumido['proteinas_g']).' de '.self::gramas((float) $metas['proteinas_g'])
+                : '';
+            $linhas[] = '📊 *Hoje:* '.self::kcal((int) $consumido['calorias']).' de '.self::kcal((int) $metas['calorias']).' kcal'.$prot;
+
+            if ($restante['calorias'] >= 0) {
+                $linha = '🎯 Ainda pode consumir *'.self::kcal((int) $restante['calorias']).' kcal*';
+                if ($restante['proteinas_g'] !== null && $restante['proteinas_g'] > 0) {
+                    $linha .= ' — e faltam *'.self::gramas((float) $restante['proteinas_g']).' de proteína*';
+                } elseif ($restante['proteinas_g'] !== null) {
+                    $linha .= ' — meta de proteína batida 💪';
+                }
+                $linhas[] = $linha;
+            } else {
+                $linhas[] = '🚨 Meta do dia ultrapassada em *'.self::kcal(abs((int) $restante['calorias'])).' kcal*';
+                if ($restante['proteinas_g'] !== null && $restante['proteinas_g'] > 0) {
+                    $linhas[] = '🎯 Ainda faltam *'.self::gramas((float) $restante['proteinas_g']).' de proteína*';
+                }
+            }
+        } else {
+            $linhas[] = '📊 *Hoje:* '.self::kcal((int) $consumido['calorias']).' kcal · Proteínas '.self::gramas((float) $consumido['proteinas_g']);
+            $linhas[] = 'ℹ️ Complete seu perfil no painel Saúde (sexo, nascimento, altura, atividade e uma pesagem) para receber metas e projeção.';
+        }
+
+        return implode("\n", $linhas);
+    }
+
+    public static function kcal(int $valor): string
+    {
+        return number_format($valor, 0, ',', '.');
+    }
+
+    public static function gramas(float $valor): string
+    {
+        $decimais = $valor == floor($valor) ? 0 : 1;
+
+        return number_format($valor, $decimais, ',', '.').'g';
+    }
+
+    /**
      * Projeção de emagrecimento em pontos semanais: linha do plano (déficit
      * planejado) vs linha do ritmo real (tendência das pesagens de ~4 semanas).
      * Null quando não há pesagem ou nenhum ritmo calculável.
