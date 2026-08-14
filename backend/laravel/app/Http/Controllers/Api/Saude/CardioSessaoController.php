@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Saude;
 use App\Http\Controllers\Controller;
 use App\Models\SaudeCardioSessao;
 use App\Services\Saude\GarminImportService;
+use App\Services\Saude\GarminService;
 use App\Services\Saude\SaudeCardioAnaliseService;
 use App\Services\Saude\SaudeCardioService;
 use Carbon\CarbonImmutable;
@@ -96,8 +97,18 @@ class CardioSessaoController extends Controller
         Request $request,
         SaudeCardioSessao $cardio,
         GarminImportService $import,
+        GarminService $garmin,
     ): JsonResponse {
         $this->authorizeOwnership($request, $cardio);
+
+        // Só o dono da conta Garmin fala com o sidecar. Hoje ninguém mais chega
+        // aqui (garmin_activity_id só é gravado pelo import), mas isso depende
+        // de três arquivos concordarem — melhor barrar por construção.
+        abort_unless(
+            $garmin->ehDono($request->user()),
+            403,
+            'A integração com o Garmin é exclusiva da conta configurada em GARMIN_USER_EMAIL.',
+        );
 
         if ($cardio->garmin_activity_id === null) {
             return response()->json([

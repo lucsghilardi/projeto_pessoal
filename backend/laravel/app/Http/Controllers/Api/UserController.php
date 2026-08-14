@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\UserProvisioningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -25,7 +27,7 @@ class UserController extends Controller
         );
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, UserProvisioningService $provisioning): JsonResponse
     {
         $this->authorize('create', User::class);
 
@@ -42,13 +44,21 @@ class UserController extends Controller
             'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
         ]);
 
-        $user = User::create([
-            'name' => trim($data['name']),
-            'email' => mb_strtolower(trim($data['email'])),
-            'role' => $data['role'],
-            'is_active' => $request->boolean('is_active', true),
-            'password' => Hash::make($data['password']),
-        ]);
+        // Na mesma transação: um usuário sem os dados iniciais nasce com o painel
+        // travado (sem categoria não se lança despesa, sem conta não se dá baixa).
+        $user = DB::transaction(function () use ($data, $request, $provisioning) {
+            $user = User::create([
+                'name' => trim($data['name']),
+                'email' => mb_strtolower(trim($data['email'])),
+                'role' => $data['role'],
+                'is_active' => $request->boolean('is_active', true),
+                'password' => Hash::make($data['password']),
+            ]);
+
+            $provisioning->provisionar($user);
+
+            return $user;
+        });
 
         return response()->json($this->serializeUser($user), 201);
     }

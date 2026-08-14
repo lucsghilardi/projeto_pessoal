@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SaudeCardioAnalise;
 use App\Models\SaudeCardioSessao;
 use App\Services\Saude\GarminImportService;
+use App\Services\Saude\GarminService;
 use App\Services\Saude\SaudeCardioAI;
 use App\Services\Saude\SaudeCardioAnaliseService;
 use Illuminate\Http\JsonResponse;
@@ -30,6 +31,7 @@ class CardioAnaliseController extends Controller
         SaudeCardioAnaliseService $contexto,
         SaudeCardioAI $ia,
         GarminImportService $import,
+        GarminService $garmin,
     ): JsonResponse {
         abort_unless((int) $cardio->user_id === (int) $request->user()->id, 403);
 
@@ -52,7 +54,7 @@ class CardioAnaliseController extends Controller
         }
 
         try {
-            $detalhe = $this->detalheDisponivel($cardio, $import);
+            $detalhe = $this->detalheDisponivel($cardio, $import, $garmin->ehDono($request->user()));
 
             $analise = $ia->analisar($contexto->contexto($request->user(), $cardio, $detalhe));
 
@@ -77,13 +79,17 @@ class CardioAnaliseController extends Controller
     /**
      * Garante o melhor contexto possível antes de gastar a chamada de IA: sem
      * splits a análise fica genérica. Mas Garmin fora do ar não pode impedir a
-     * análise — nesse caso ela sai só com o resumo da sessão.
+     * análise — nesse caso ela sai só com o resumo da sessão. O mesmo vale para
+     * quem não é o dono da conta Garmin: usa o que já estiver gravado e segue.
      */
-    private function detalheDisponivel(SaudeCardioSessao $cardio, GarminImportService $import)
-    {
+    private function detalheDisponivel(
+        SaudeCardioSessao $cardio,
+        GarminImportService $import,
+        bool $podeBuscarNoGarmin,
+    ) {
         $detalhe = $cardio->detalhe()->first();
 
-        if ($detalhe !== null || $cardio->garmin_activity_id === null) {
+        if ($detalhe !== null || $cardio->garmin_activity_id === null || ! $podeBuscarNoGarmin) {
             return $detalhe;
         }
 

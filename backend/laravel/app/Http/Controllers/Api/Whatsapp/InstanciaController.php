@@ -54,11 +54,16 @@ class InstanciaController extends Controller
             Log::warning('[whatsapp:instancia] webhook não configurado na criação: '.($webhook['erro'] ?? ''));
         }
 
+        // Relatórios entram desligados: a coluna tem default(true), o que fazia
+        // toda instância nova gastar duas chamadas de IA por dia sem ninguém
+        // pedir. Os interruptores estão na própria tela.
         $instancia = WhatsappInstancia::create([
             'user_id' => $request->user()->id,
             'apelido' => $data['apelido'] ?? null,
             'instance_name' => $instanceName,
             'status' => 'conectando',
+            'relatorio_diario_ativo' => false,
+            'resumo_matinal_ativo' => false,
         ]);
 
         return response()->json(['instancia' => $instancia], 201);

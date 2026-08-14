@@ -85,7 +85,9 @@ class ProcessarMensagemPessoal implements ShouldQueue
     ): void {
         $mensagem = WhatsappMensagem::with('instancia.user')->find($this->mensagemId);
         $user = $mensagem?->instancia?->user;
-        if ($user === null) {
+        // O webhook da Evolution é público: sem checar is_active aqui, o
+        // assistente de quem foi desativado continuaria respondendo e gravando.
+        if ($user === null || ! $user->is_active) {
             return;
         }
 

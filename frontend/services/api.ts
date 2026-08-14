@@ -115,6 +115,7 @@ import {
     SaudeSuplemento,
     SaudeSuplementoPayload,
     SaudeTreino,
+    SaudeTreinoPayload,
     SaudeTreinoSessao,
 } from '@/types/Saude';
 
@@ -206,6 +207,28 @@ export async function login(
     });
 
     await parseApiResponse<{ authenticated: boolean }>(res);
+}
+
+/**
+ * Fora do proxy: a rota própria reescreve o cookie com o token novo, já que
+ * trocar a senha invalida o anterior no backend.
+ */
+export async function updateOwnPassword(data: {
+    senha_atual: string;
+    password: string;
+    password_confirmation: string;
+}): Promise<void> {
+    const res = await fetch('/api/auth/password', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    await parseApiResponse<{ message: string }>(res);
 }
 
 export async function logout(): Promise<void> {
@@ -1029,6 +1052,24 @@ export function uncheckSaudeSuplemento(id: number, data: string) {
 
 export function getSaudeTreinos() {
     return apiFetch<SaudeTreino[]>('/saude/treinos');
+}
+
+export function createSaudeTreino(data: SaudeTreinoPayload) {
+    return apiFetch<SaudeTreino>('/saude/treinos', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export function updateSaudeTreino(id: number, data: SaudeTreinoPayload) {
+    return apiFetch<SaudeTreino>(`/saude/treinos/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+}
+
+export function deleteSaudeTreino(id: number) {
+    return apiFetch<{ message: string }>(`/saude/treinos/${id}`, { method: 'DELETE' });
 }
 
 export function createSaudeExercicio(data: SaudeExercicioPayload) {

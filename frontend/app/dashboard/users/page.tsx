@@ -55,24 +55,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  editor: "Editor",
-  viewer: "Viewer",
-};
-
-const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  admin: "Acesso completo ao painel e gerenciamento de usuarios.",
-  editor: "Acesso operacional para manutencao de conteudo.",
-  viewer: "Acesso restrito para consulta do painel.",
-};
-
-const ROLE_ORDER: Record<UserRole, number> = {
-  admin: 0,
-  editor: 1,
-  viewer: 2,
-};
+import {
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  ROLE_OPTIONS,
+  ROLE_ORDER,
+} from "@/lib/user-roles";
 
 const emptyCreateForm: CreateUserPayload = {
   name: "",
@@ -123,12 +111,10 @@ function formatDateTime(value?: string) {
 }
 
 function getRolePillClassName(role: UserRole) {
+  // Só duas cores: "editor" e "viewer" mostram o mesmo rótulo, e cores
+  // diferentes para o mesmo texto pareceriam defeito.
   if (role === "admin") {
     return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (role === "editor") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
   return "border-zinc-200 bg-zinc-100 text-zinc-700";
@@ -206,11 +192,22 @@ export default function UsersPage() {
     () => ({
       total: users.length,
       admins: users.filter((currentUser) => currentUser.role === "admin").length,
-      editors: users.filter((currentUser) => currentUser.role === "editor").length,
-      viewers: users.filter((currentUser) => currentUser.role === "viewer").length,
+      // "editor" e "viewer" são a mesma coisa na prática: cada conta mexe só
+      // nos próprios dados. Contar separado sugeria uma distinção que não há.
+      comuns: users.filter((currentUser) => currentUser.role !== "admin").length,
       inactive: users.filter((currentUser) => !currentUser.is_active).length,
     }),
     [users],
+  );
+
+  // Contas antigas podem ter o papel legado "viewer", que não é mais oferecido.
+  // Sem mantê-lo na lista, o select abriria vazio ao editar essas contas.
+  const editRoleOptions = useMemo(
+    () =>
+      ROLE_OPTIONS.includes(editForm.role)
+        ? ROLE_OPTIONS
+        : [...ROLE_OPTIONS, editForm.role],
+    [editForm.role],
   );
 
   const selectedUserRules = useMemo(() => {
@@ -347,7 +344,7 @@ export default function UsersPage() {
           }
         />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card className="border-red-100 bg-red-50/60">
             <CardContent className="flex items-center justify-between pt-6">
               <div>
@@ -359,20 +356,14 @@ export default function UsersPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Admins</p>
+              <p className="text-sm text-muted-foreground">Administradores</p>
               <p className="text-3xl font-semibold">{userStats.admins}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Editors</p>
-              <p className="text-3xl font-semibold">{userStats.editors}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Viewers</p>
-              <p className="text-3xl font-semibold">{userStats.viewers}</p>
+              <p className="text-sm text-muted-foreground">Usuários</p>
+              <p className="text-3xl font-semibold">{userStats.comuns}</p>
             </CardContent>
           </Card>
           <Card>
@@ -448,9 +439,11 @@ export default function UsersPage() {
                         <SelectValue placeholder="Selecione o perfil" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
+                        {ROLE_OPTIONS.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {ROLE_LABELS[role]}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FieldDescription>
@@ -687,9 +680,11 @@ export default function UsersPage() {
                       <SelectValue placeholder="Selecione o perfil" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
+                      {editRoleOptions.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {ROLE_LABELS[role]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FieldDescription>

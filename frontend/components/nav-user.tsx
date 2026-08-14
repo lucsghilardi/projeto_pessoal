@@ -1,8 +1,10 @@
 "use client"
 
+import Link from "next/link"
 import {
   ChevronsUpDown,
   LogOut,
+  UserCog,
 } from "lucide-react"
 
 import {
@@ -81,6 +83,13 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/perfil">
+                <UserCog />
+                Perfil
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => logout()}>
               <LogOut />

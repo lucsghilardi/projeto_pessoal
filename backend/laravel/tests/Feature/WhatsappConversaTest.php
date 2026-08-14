@@ -581,6 +581,70 @@ class WhatsappConversaTest extends TestCase
         }
     }
 
+    /**
+     * O webhook da Evolution é público e roda fora de requisição autenticada:
+     * sem checar is_active, desativar alguém tirava só o painel — o assistente
+     * seguia respondendo, criando tarefas e gastando crédito de IA.
+     */
+    public function test_usuario_desativado_nao_tem_mais_assistente(): void
+    {
+        [$user] = $this->instanciaConectada();
+        $user->update(['is_active' => false]);
+
+        $this->mockRoteadorNuncaChamado();
+
+        $this->receber('ligar pro dentista sexta');
+
+        $this->assertSame(0, Task::count());
+        $this->assertSame([], $this->enviadas, 'O bot respondeu para um usuário desativado.');
+    }
+
+    public function test_lembrete_de_suplemento_nao_vai_para_usuario_desativado(): void
+    {
+        [$user, $instancia] = $this->instanciaConectada();
+
+        \App\Models\SaudeSuplemento::create([
+            'user_id' => $user->id,
+            'nome' => 'Creatina',
+            'horario' => '07:00',
+            'ativo' => true,
+            'posicao' => 1,
+        ]);
+
+        $user->update(['is_active' => false]);
+
+        (new \App\Jobs\EnviarLembretesSuplementos)->handle(app(WhatsappSender::class));
+
+        $this->assertSame([], $this->enviadas);
+        $this->assertSame(0, \App\Models\SaudeLembrete::where('user_id', $user->id)->count());
+        $this->assertNotNull($instancia->fresh());
+    }
+
+    public function test_relatorio_diario_nao_enfileira_usuario_desativado(): void
+    {
+        Queue::fake();
+
+        [$ativo] = $this->instanciaConectada(['relatorio_diario_ativo' => true]);
+
+        $inativo = User::factory()->create(['is_active' => false]);
+        WhatsappInstancia::create([
+            'user_id' => $inativo->id,
+            'instance_name' => 'inst-'.$inativo->id,
+            'phone' => '5511888888888',
+            'status' => 'conectado',
+            'relatorio_diario_ativo' => true,
+        ]);
+
+        (new \App\Jobs\GerarRelatorioDiario)->handle();
+
+        Queue::assertPushed(\App\Jobs\EnviarRelatorioWhatsapp::class, 1);
+        Queue::assertPushed(
+            \App\Jobs\EnviarRelatorioWhatsapp::class,
+            fn (\App\Jobs\EnviarRelatorioWhatsapp $job) => $job->userId === $ativo->id
+                && $job->tipo === 'diario',
+        );
+    }
+
     // ============================================================
     // Helpers
     // ============================================================

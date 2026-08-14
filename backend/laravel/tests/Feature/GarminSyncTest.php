@@ -355,4 +355,75 @@ class GarminSyncTest extends TestCase
     {
         return 'Bearer '.Auth::guard('api')->login($user);
     }
+
+    // Um sidecar = uma conta Garmin. Sem estas guardas, qualquer usuário do
+    // painel que abrisse a tela de Saúde disparava o auto-sync e gravava
+    // cardio, sono e saude_metas na conta do dono.
+
+    public function test_status_do_garmin_nao_vaza_para_outro_usuario(): void
+    {
+        $this->usuarioGarmin();
+        $outro = User::factory()->create(['email' => 'familiar@teste.com']);
+
+        Http::fake();
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($outro))
+            ->getJson('/api/saude/garmin/status')
+            ->assertOk()
+            ->assertJsonPath('configurado', false)
+            ->assertJsonPath('status.erro', 'nao_configurado');
+
+        // Nem chega a bater no sidecar.
+        Http::assertNothingSent();
+    }
+
+    public function test_sincronizacao_manual_e_bloqueada_para_outro_usuario(): void
+    {
+        $this->usuarioGarmin();
+        $outro = User::factory()->create(['email' => 'familiar@teste.com']);
+
+        Http::fake();
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($outro))
+            ->postJson('/api/saude/garmin/sincronizar')
+            ->assertForbidden();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_auto_sync_de_outro_usuario_nao_importa_nada(): void
+    {
+        $dono = $this->usuarioGarmin();
+        $outro = User::factory()->create(['email' => 'familiar@teste.com']);
+
+        Http::fake();
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($outro))
+            ->postJson('/api/saude/garmin/sincronizar-auto')
+            ->assertOk()
+            ->assertJsonPath('executado', false)
+            ->assertJsonPath('motivo', 'nao_configurado');
+
+        Http::assertNothingSent();
+
+        $this->assertSame(0, SaudeCardioSessao::where('user_id', $dono->id)->count());
+        $this->assertSame(0, SaudeSono::where('user_id', $dono->id)->count());
+        $this->assertSame(0, SaudeDiaGarmin::where('user_id', $dono->id)->count());
+    }
+
+    public function test_dono_continua_sincronizando_pela_rota(): void
+    {
+        $dono = $this->usuarioGarmin();
+
+        $this->fakeSidecar([
+            $this->atividade(23868174577, 'running', '2026-08-05 19:19:47', duracaoSeg: 1353.96),
+        ]);
+
+        $this->withHeader('Authorization', $this->bearerTokenFor($dono))
+            ->postJson('/api/saude/garmin/sincronizar')
+            ->assertOk()
+            ->assertJsonPath('cardio', 1);
+
+        $this->assertSame(1, SaudeCardioSessao::where('user_id', $dono->id)->count());
+    }
 }

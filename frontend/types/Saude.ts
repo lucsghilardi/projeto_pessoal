@@ -69,6 +69,13 @@ export type SaudeTreino = {
   exercicios: SaudeExercicio[];
 };
 
+export type SaudeTreinoPayload = {
+  nome: string;
+  tipo?: SaudeTreinoTipo;
+  /** Sem valor, o backend joga a ficha para o fim da lista. */
+  posicao?: number | null;
+};
+
 export type SaudeTreinoResumo = {
   id: number;
   nome: string;

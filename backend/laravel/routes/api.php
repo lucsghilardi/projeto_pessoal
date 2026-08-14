@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
+use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\Saude\CardioAnaliseController;
 use App\Http\Controllers\Api\Saude\CardioSessaoController;
 use App\Http\Controllers\Api\Saude\ExercicioController;
@@ -58,6 +59,7 @@ Route::post('/whatsapp/webhook/evolution', [WhatsappWebhookController::class, 'e
 
 Route::middleware(['auth:api', 'panel.active'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me/password', [MeController::class, 'updatePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);

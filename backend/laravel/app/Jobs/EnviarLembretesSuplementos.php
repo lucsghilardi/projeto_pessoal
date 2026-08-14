@@ -44,7 +44,10 @@ class EnviarLembretesSuplementos implements ShouldQueue
 
         foreach ($pendentes as $userId => $suplementos) {
             try {
-                $instancia = WhatsappInstancia::where('user_id', $userId)->first();
+                $instancia = WhatsappInstancia::query()
+                    ->deUsuarioAtivo()
+                    ->where('user_id', $userId)
+                    ->first();
                 if ($instancia === null || $instancia->status !== 'conectado') {
                     continue; // sem WhatsApp conectado: tenta de novo no próximo ciclo
                 }

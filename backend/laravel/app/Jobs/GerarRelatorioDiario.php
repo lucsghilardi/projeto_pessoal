@@ -3,35 +3,23 @@
 namespace App\Jobs;
 
 use App\Models\WhatsappInstancia;
-use App\Services\Whatsapp\WhatsappRelatorioService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
 
 /**
- * Relatório de fim de dia: roda pelo scheduler (routes/console.php) e gera o
- * relatório de cada usuário com instância ativa, enviando pelo WhatsApp.
+ * Relatório de fim de dia: roda pelo scheduler (routes/console.php) e enfileira
+ * um envio por usuário com instância ativa.
  */
 class GerarRelatorioDiario implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 570;
-
-    public function handle(WhatsappRelatorioService $service): void
+    public function handle(): void
     {
-        WhatsappInstancia::with('user')
+        WhatsappInstancia::query()
+            ->deUsuarioAtivo()
             ->where('relatorio_diario_ativo', true)
-            ->get()
-            ->each(function (WhatsappInstancia $instancia) use ($service) {
-                if ($instancia->user === null) {
-                    return;
-                }
-                try {
-                    $service->gerarEEnviar($instancia->user, 'diario');
-                } catch (\Throwable $e) {
-                    Log::error("[whatsapp:relatorio] falha no diário do usuário {$instancia->user_id}: ".$e->getMessage());
-                }
-            });
+            ->pluck('user_id')
+            ->each(fn (int $userId) => EnviarRelatorioWhatsapp::dispatch($userId, 'diario'));
     }
 }

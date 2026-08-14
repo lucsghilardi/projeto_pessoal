@@ -13,8 +13,20 @@ use RuntimeException;
 
 class GarminController extends Controller
 {
-    public function status(GarminService $garmin): JsonResponse
+    /**
+     * Para quem não é o dono da conta Garmin a integração simplesmente não
+     * existe: `configurado: false` já faz o frontend esconder o bloco, e nem
+     * chegamos a bater no sidecar.
+     */
+    public function status(Request $request, GarminService $garmin): JsonResponse
     {
+        if (! $garmin->ehDono($request->user())) {
+            return response()->json([
+                'configurado' => false,
+                'status' => ['ok' => false, 'autenticado' => false, 'erro' => 'nao_configurado'],
+            ]);
+        }
+
         return response()->json([
             'configurado' => $garmin->configOk(),
             'status' => $garmin->status(),
@@ -28,6 +40,12 @@ class GarminController extends Controller
      */
     public function sincronizar(Request $request, GarminService $garmin, GarminImportService $import): JsonResponse
     {
+        abort_unless(
+            $garmin->ehDono($request->user()),
+            403,
+            'A integração com o Garmin é exclusiva da conta configurada em GARMIN_USER_EMAIL.',
+        );
+
         abort_unless($garmin->configOk(), 422, 'A integração com o Garmin não está configurada.');
 
         $data = $request->validate([
@@ -51,7 +69,10 @@ class GarminController extends Controller
      */
     public function sincronizarAuto(Request $request, GarminService $garmin, GarminImportService $import): JsonResponse
     {
-        if (! $garmin->configOk()) {
+        // Antes da trava: ela é por usuário, então sem esta saída cada pessoa
+        // navegando na Saúde abriria a própria janela de 10 min contra a API não
+        // oficial do Garmin — que responde 503 e derruba o sync do dono.
+        if (! $garmin->ehDono($request->user()) || ! $garmin->configOk()) {
             return response()->json(['executado' => false, 'motivo' => 'nao_configurado']);
         }
 

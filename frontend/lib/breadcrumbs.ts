@@ -12,6 +12,7 @@ export const breadcrumbMap: Record<string, string> = {
   purposes: "Propósitos",
   institutions: "Instituições",
   users: "Usuários",
+  perfil: "Perfil",
   finance: "Financeiro",
   reports: "Relatórios",
   "plano-1-milhao": "Plano 1 Milhão",

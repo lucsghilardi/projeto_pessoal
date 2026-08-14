@@ -41,8 +41,11 @@ const dashboardRouteRules: DashboardRouteRule[] = [
   { path: "/dashboard/finance", roles: ALL_ROLES },
   { path: "/dashboard/consorcios", roles: ALL_ROLES },
   { path: "/dashboard/saude", roles: ALL_ROLES },
-  { path: "/dashboard/whatsapp", roles: ["admin"] },
+  { path: "/dashboard/whatsapp", roles: ALL_ROLES },
   { path: "/dashboard/users", roles: ["admin"] },
+  // Fora do menu lateral: chega-se pelo dropdown do avatar. Precisa da regra
+  // mesmo assim — rota não mapeada é tratada como proibida.
+  { path: "/dashboard/perfil", roles: ALL_ROLES },
   { path: "/dashboard", roles: ALL_ROLES, exact: true },
 ];
 
@@ -101,10 +104,12 @@ export const dashboardNav: DashboardNavEntry[] = [
     label: "WhatsApp",
     icon: MessageCircle,
     items: [
-      { title: "Visão geral", url: "/dashboard/whatsapp", roles: ["admin"], icon: MessageCircle },
-      { title: "Conversas", url: "/dashboard/whatsapp/conversas", roles: ["admin"], icon: MessagesSquare },
-      { title: "Relatórios", url: "/dashboard/whatsapp/relatorios", roles: ["admin"], icon: ScrollText },
-      { title: "Sugestões", url: "/dashboard/whatsapp/sugestoes", roles: ["admin"], icon: Lightbulb },
+      // Cada usuário conecta o próprio número: uma instância por conta, e o
+      // webhook resolve o dono pelo instance_name.
+      { title: "Visão geral", url: "/dashboard/whatsapp", roles: ALL_ROLES, icon: MessageCircle },
+      { title: "Conversas", url: "/dashboard/whatsapp/conversas", roles: ALL_ROLES, icon: MessagesSquare },
+      { title: "Relatórios", url: "/dashboard/whatsapp/relatorios", roles: ALL_ROLES, icon: ScrollText },
+      { title: "Sugestões", url: "/dashboard/whatsapp/sugestoes", roles: ALL_ROLES, icon: Lightbulb },
     ],
   },
   { kind: "link", title: "Patrimônios", url: "/dashboard/assets", roles: ALL_ROLES, icon: Gem },

@@ -6,9 +6,11 @@ import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
 import { ExercicioSheet } from "@/components/saude/exercicio-sheet";
+import { TreinoSheet } from "@/components/saude/treino-sheet";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -28,6 +30,7 @@ import { appToast } from "@/lib/toast";
 import {
   deleteSaudeExercicio,
   deleteSaudeSessao,
+  deleteSaudeTreino,
   getSaudeSessoes,
   getSaudeTreinos,
   reorderSaudeExercicios,
@@ -49,6 +52,8 @@ export default function TreinosPage() {
   const [treinoAtivo, setTreinoAtivo] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<SaudeExercicio | null>(null);
+  const [treinoSheetOpen, setTreinoSheetOpen] = useState(false);
+  const [editingTreino, setEditingTreino] = useState<SaudeTreino | null>(null);
 
   const load = useCallback(async () => {
     const [treinosData, sessoesData] = await Promise.all([
@@ -101,6 +106,43 @@ export default function TreinosPage() {
   function openEdit(exercicio: SaudeExercicio) {
     setEditing(exercicio);
     setSheetOpen(true);
+  }
+
+  function openCreateTreino() {
+    setEditingTreino(null);
+    setTreinoSheetOpen(true);
+  }
+
+  function openEditTreino() {
+    setEditingTreino(treinoSelecionado);
+    setTreinoSheetOpen(true);
+  }
+
+  async function handleDeleteTreino() {
+    if (!treinoSelecionado) {
+      return;
+    }
+
+    const quantos = treinoSelecionado.exercicios.length;
+    const aviso = quantos > 0 ? ` Os ${quantos} itens da ficha vão junto.` : "";
+
+    if (!window.confirm(`Excluir a ficha "${treinoSelecionado.nome}"?${aviso}`)) {
+      return;
+    }
+
+    try {
+      await deleteSaudeTreino(treinoSelecionado.id);
+      appToast.success("Ficha removida.");
+      // A aba ativa deixou de existir; o load reposiciona na primeira.
+      setTreinoAtivo("");
+      await load();
+    } catch (error) {
+      appToast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Não foi possível remover a ficha.",
+      );
+    }
   }
 
   async function handleDelete(exercicio: SaudeExercicio) {
@@ -190,19 +232,30 @@ export default function TreinosPage() {
         title="Treinos"
         description="Fichas de musculação e de cardio — e o histórico dos dias treinados."
         actions={
-          <Button onClick={openCreate} disabled={!treinoSelecionado}>
-            <Plus className="size-4" />
-            {isCardio ? "Novo bloco" : "Novo exercício"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openCreateTreino}>
+              <Plus className="size-4" />
+              Nova ficha
+            </Button>
+            <Button onClick={openCreate} disabled={!treinoSelecionado}>
+              <Plus className="size-4" />
+              {isCardio ? "Novo bloco" : "Novo exercício"}
+            </Button>
+          </div>
         }
       />
 
       {treinos.length === 0 ? (
         <Card>
-          <CardContent>
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhum treino cadastrado.
+          <CardContent className="flex flex-col items-center gap-3 py-8">
+            <p className="text-center text-sm text-muted-foreground">
+              Nenhuma ficha cadastrada. Crie a primeira para começar a montar os
+              exercícios.
             </p>
+            <Button onClick={openCreateTreino}>
+              <Plus className="size-4" />
+              Nova ficha
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -220,6 +273,28 @@ export default function TreinosPage() {
                 {treinoSelecionado?.exercicios.length ?? 0}{" "}
                 {isCardio ? "bloco(s)" : "exercício(s)"} na ficha.
               </CardDescription>
+              <CardAction>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Renomear ficha"
+                    disabled={!treinoSelecionado}
+                    onClick={openEditTreino}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Excluir ficha"
+                    disabled={!treinoSelecionado}
+                    onClick={handleDeleteTreino}
+                  >
+                    <Trash2 className="size-4 text-red-600" />
+                  </Button>
+                </div>
+              </CardAction>
             </CardHeader>
             <CardContent>
               {!treinoSelecionado || treinoSelecionado.exercicios.length === 0 ? (
@@ -371,6 +446,13 @@ export default function TreinosPage() {
         treinoId={treinoSelecionado?.id ?? null}
         tipo={treinoSelecionado?.tipo ?? "musculacao"}
         editing={editing}
+        onSaved={load}
+      />
+
+      <TreinoSheet
+        open={treinoSheetOpen}
+        onOpenChange={setTreinoSheetOpen}
+        editing={editingTreino}
         onSaved={load}
       />
     </div>

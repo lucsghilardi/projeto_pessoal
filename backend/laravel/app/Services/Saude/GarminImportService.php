@@ -405,11 +405,7 @@ class GarminImportService
 
     private function usuario(): User
     {
-        $email = (string) config('garmin.user_email');
-
-        $user = $email !== ''
-            ? User::whereRaw('lower(email) = ?', [mb_strtolower($email)])->first()
-            : null;
+        $user = $this->garmin->usuarioDestino();
 
         if ($user === null) {
             throw new RuntimeException(

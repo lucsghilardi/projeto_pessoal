@@ -2,6 +2,7 @@
 
 namespace App\Services\Saude;
 
+use App\Models\User;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -18,6 +19,38 @@ class GarminService
         return (bool) config('garmin.ativo')
             && filled(config('garmin.base_url'))
             && filled(config('garmin.token'));
+    }
+
+    /**
+     * Dono da conta Garmin: um sidecar guarda um token store só, então tudo que
+     * for importado pertence a este usuário (ver config/garmin.php).
+     */
+    public function usuarioDestino(): ?User
+    {
+        $email = trim((string) config('garmin.user_email'));
+
+        if ($email === '') {
+            return null;
+        }
+
+        return User::whereRaw('lower(email) = ?', [mb_strtolower($email)])->first();
+    }
+
+    /**
+     * Guarda das rotas de Garmin. Sem isto, qualquer usuário autenticado que
+     * abrisse a tela de Saúde disparava o auto-sync e gravava cardio, sono e
+     * `saude_metas` na conta do dono — o import resolve o destino pelo .env e
+     * ignora quem fez a requisição.
+     */
+    public function ehDono(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $dono = $this->usuarioDestino();
+
+        return $dono !== null && (int) $dono->id === (int) $user->id;
     }
 
     /** Não levanta exceção: a UI usa isto para dizer se precisa refazer o login. */
