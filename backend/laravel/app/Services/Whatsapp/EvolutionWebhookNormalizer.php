@@ -125,6 +125,92 @@ class EvolutionWebhookNormalizer
     }
 
     /**
+     * Reconhece "apagar para todos". O mesmo revoke chega de duas formas, e qual
+     * delas depende da versão da Evolution — por isso o evento entra como
+     * parâmetro em vez de ser adivinhado pelo formato do payload:
+     *
+     *   1. messages.delete — o data É a key da mensagem apagada (ou vem em
+     *      data.key, ou como lista em data.keys, que é o formato cru do Baileys
+     *      quando várias somem de uma vez);
+     *   2. messages.upsert com messageType protocolMessage — a key externa é a
+     *      do stanza de revoke e a interna (message.protocolMessage.key) aponta
+     *      a mensagem que sumiu.
+     *
+     * Devolve lista vazia quando não é revoke — inclusive para os outros
+     * protocolMessage (EPHEMERAL_SETTING, APP_STATE_SYNC...), que não interessam.
+     *
+     * @return list<array{messageId: string, remoteJid: string, porMim: bool}>
+     */
+    public function normalizarRevokes(array $data, string $event): array
+    {
+        $keys = $event === 'messages.delete'
+            ? $this->keysDoDelete($data)
+            : $this->keysDoProtocolMessage($data);
+
+        $revokes = [];
+        foreach ($keys as $key) {
+            $messageId = (string) ($key['id'] ?? '');
+            if ($messageId === '') {
+                continue;
+            }
+
+            $revokes[] = [
+                'messageId' => $messageId,
+                'remoteJid' => (string) ($key['remoteJid'] ?? ''),
+                'porMim' => (bool) ($key['fromMe'] ?? false),
+            ];
+        }
+
+        return $revokes;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function keysDoDelete(array $data): array
+    {
+        if (is_array($data['keys'] ?? null)) {
+            return array_values(array_filter($data['keys'], 'is_array'));
+        }
+        if (is_array($data['key'] ?? null)) {
+            return [$data['key']];
+        }
+
+        return isset($data['id']) ? [$data] : [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function keysDoProtocolMessage(array $data): array
+    {
+        $message = is_array($data['message'] ?? null) ? $data['message'] : [];
+        $protocolo = is_array($message['protocolMessage'] ?? null) ? $message['protocolMessage'] : [];
+        if ($protocolo === []) {
+            return [];
+        }
+
+        // REVOKE é 0 no enum do Baileys; a Evolution ora manda o nome, ora o
+        // número. Sem type declarado não dá para afirmar que é revoke.
+        $tipo = $protocolo['type'] ?? null;
+        if (strtoupper((string) $tipo) !== 'REVOKE' && $tipo !== 0 && $tipo !== '0') {
+            return [];
+        }
+
+        $keyAlvo = is_array($protocolo['key'] ?? null) ? $protocolo['key'] : [];
+        if ($keyAlvo === []) {
+            return [];
+        }
+
+        // A key interna costuma vir só com o id; o resto completa pela externa.
+        // fromMe aqui é de quem ESCREVEU a mensagem apagada, não de quem emitiu
+        // o stanza de revoke — é esse o "quem" que interessa.
+        $keyExterna = is_array($data['key'] ?? null) ? $data['key'] : [];
+
+        return [$keyAlvo + $keyExterna];
+    }
+
+    /**
      * Procura um contextInfo com stanzaId (mensagem citada) em qualquer node do
      * message e devolve { messageId, texto } resumindo a citação.
      */

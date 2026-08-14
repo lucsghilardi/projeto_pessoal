@@ -63,7 +63,12 @@ class EvolutionService
         ]);
     }
 
-    public function setWebhook(string $url, array $events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE']): array
+    /**
+     * MESSAGES_DELETE alimenta o aviso de mensagem apagada. Assinar um evento
+     * novo só vale depois de rodar isto de novo em cada instância já criada
+     * (POST /api/whatsapp/instancia/webhook) — confira com /webhook/find.
+     */
+    public function setWebhook(string $url, array $events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'SEND_MESSAGE']): array
     {
         return $this->http('POST', "/webhook/set/{$this->instanceName}", [
             'webhook' => [

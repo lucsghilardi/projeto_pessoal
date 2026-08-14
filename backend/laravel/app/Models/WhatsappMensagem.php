@@ -27,12 +27,14 @@ class WhatsappMensagem extends Model
         'quoted_message_id',
         'quoted_texto',
         'origem',
+        'apagada_em',
         'raw_payload',
     ];
 
     protected $casts = [
         'from_me' => 'boolean',
         'momment' => 'integer',
+        'apagada_em' => 'datetime',
         'raw_payload' => 'array',
     ];
 

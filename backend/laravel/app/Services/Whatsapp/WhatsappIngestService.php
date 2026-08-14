@@ -3,6 +3,7 @@
 namespace App\Services\Whatsapp;
 
 use App\Jobs\AnalisarAnexoWhatsapp;
+use App\Jobs\AvisarMensagemApagada;
 use App\Jobs\ProcessarMensagemPessoal;
 use App\Models\WhatsappChat;
 use App\Models\WhatsappConversa;
@@ -123,6 +124,52 @@ class WhatsappIngestService
         WhatsappMensagem::where('instancia_id', $instancia->id)
             ->where('message_id', $messageId)
             ->update(['status' => $status]);
+    }
+
+    /**
+     * "Apagar para todos": marca a mensagem e, quando foi o contato que apagou,
+     * agenda o aviso no seu próprio número.
+     *
+     * A marca é gravada mesmo quando o aviso não vai sair — é ela que faz o
+     * dedupe (o mesmo revoke chega em dois formatos de evento) e que deixa o
+     * histórico honesto no painel.
+     *
+     * Mensagem que não está no banco é ignorada em silêncio: sem o conteúdo
+     * original o aviso não teria o que mostrar, e a Evolution roda com
+     * DATABASE_SAVE_DATA_HISTORIC=false — não há de onde recuperar.
+     *
+     * @param  array{messageId: string, remoteJid: string, porMim: bool}  $revoke
+     */
+    public function marcarApagada(array $revoke, WhatsappInstancia $instancia): void
+    {
+        $messageId = (string) ($revoke['messageId'] ?? '');
+        if ($messageId === '') {
+            return;
+        }
+
+        $mensagem = WhatsappMensagem::with('chat')
+            ->where('instancia_id', $instancia->id)
+            ->where('message_id', $messageId)
+            ->first();
+
+        if ($mensagem === null || $mensagem->apagada_em !== null) {
+            return;
+        }
+
+        $mensagem->update(['apagada_em' => now()]);
+
+        // Apagar coisa sua não é notícia — inclusive no chat consigo mesmo.
+        if (! $instancia->aviso_apagadas_ativo || $mensagem->from_me) {
+            return;
+        }
+
+        if ($mensagem->chat === null || $mensagem->chat->is_group) {
+            return;
+        }
+
+        // Na fila porque o webhook precisa responder rápido: com a sessão caída,
+        // o sendText só volta depois do timeout de 60s.
+        dispatch(new AvisarMensagemApagada($mensagem->id));
     }
 
     /**

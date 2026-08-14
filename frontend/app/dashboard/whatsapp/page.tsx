@@ -226,6 +226,7 @@ export default function WhatsappOverviewPage() {
       | "calorias_foto_ativo"
       | "calorias_texto_ia"
       | "financeiro_ativo"
+      | "aviso_apagadas_ativo"
       | "relatorio_diario_ativo"
       | "resumo_matinal_ativo",
     valor: boolean,
@@ -424,6 +425,12 @@ export default function WhatsappOverviewPage() {
                   description="Foto de cupom enviada para você mesmo vira lançamento no Financeiro. O assistente lê valor, data e categoria, e pergunta em qual conta ou cartão lançar."
                   checked={instancia.financeiro_ativo}
                   onChange={(v) => handleToggle("financeiro_ativo", v)}
+                />
+                <ToggleRow
+                  label="Avisar mensagens apagadas"
+                  description="Quando um contato apagar uma mensagem que mandou, você recebe no seu próprio número o nome dele e o texto que sumiu. Grupos e o que você mesmo apagar ficam de fora."
+                  checked={instancia.aviso_apagadas_ativo}
+                  onChange={(v) => handleToggle("aviso_apagadas_ativo", v)}
                 />
               </CardContent>
             </Card>

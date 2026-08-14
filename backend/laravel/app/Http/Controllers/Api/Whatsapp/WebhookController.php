@@ -37,7 +37,16 @@ class WebhookController extends Controller
                 return response()->json(['ok' => true, 'ignored' => 'instancia desconhecida']);
             }
 
-            if (in_array($event, ['messages.upsert', 'send.message'], true)) {
+            // "Apagar para todos" chega como messages.delete e/ou como um
+            // messages.upsert de protocolMessage — depende da versão da
+            // Evolution. Checar antes do fluxo normal: o normalizarUpsert
+            // descarta protocolMessage, então o revoke se perderia ali.
+            $revokes = $normalizer->normalizarRevokes($data, $event);
+            if ($revokes !== []) {
+                foreach ($revokes as $revoke) {
+                    $ingest->marcarApagada($revoke, $instancia);
+                }
+            } elseif (in_array($event, ['messages.upsert', 'send.message'], true)) {
                 $norm = $normalizer->normalizarUpsert($data, $instanceName);
                 if ($norm !== null) {
                     $ingest->processarEvento($norm, $instancia);
