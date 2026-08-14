@@ -158,6 +158,9 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/instancia/status', [WhatsappInstanciaController::class, 'status']);
         Route::post('/instancia/webhook', [WhatsappInstanciaController::class, 'reconfigurarWebhook']);
 
+        Route::get('/mensagens/total', [WhatsappInstanciaController::class, 'totalMensagens']);
+        Route::post('/mensagens/limpar', [WhatsappInstanciaController::class, 'limparMensagens']);
+
         Route::get('/chats', [WhatsappChatController::class, 'index']);
         Route::get('/atencao', [WhatsappChatController::class, 'atencao']);
         Route::get('/chats/{chat}/mensagens', [WhatsappChatController::class, 'mensagens']);

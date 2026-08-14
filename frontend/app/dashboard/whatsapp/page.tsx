@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Eye, MessageCircle, Plug, QrCode, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Eraser,
+  Eye,
+  MessageCircle,
+  Plug,
+  QrCode,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
@@ -13,14 +25,18 @@ import {
   gerarWhatsappRelatorio,
   getWhatsappAtencao,
   getWhatsappInstancia,
+  getWhatsappMensagensTotal,
   getWhatsappQrcode,
   getWhatsappStatus,
+  limparWhatsappMensagens,
   updateWhatsappInstancia,
 } from "@/services/api";
 import { ApiError } from "@/services/apiError";
 import type { WhatsappAtencao, WhatsappAtencaoItem, WhatsappInstancia } from "@/types/Whatsapp";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -117,6 +133,10 @@ export default function WhatsappOverviewPage() {
   const [qrBase64, setQrBase64] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [gerando, setGerando] = useState<"diario" | "matinal" | null>(null);
+  const [limparOpen, setLimparOpen] = useState(false);
+  const [limparTexto, setLimparTexto] = useState("");
+  const [limparTotal, setLimparTotal] = useState<number | null>(null);
+  const [limpando, setLimpando] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const carregar = useCallback(async () => {
@@ -246,6 +266,32 @@ export default function WhatsappOverviewPage() {
     }
   }
 
+  async function abrirLimpar() {
+    setLimparOpen(true);
+    setLimparTexto("");
+    setLimparTotal(null);
+    try {
+      const { total } = await getWhatsappMensagensTotal();
+      setLimparTotal(total);
+    } catch (error) {
+      appToast.error(error instanceof ApiError ? error.message : "Não foi possível contar as mensagens.");
+    }
+  }
+
+  async function handleLimpar() {
+    setLimpando(true);
+    try {
+      const { message } = await limparWhatsappMensagens();
+      setLimparOpen(false);
+      appToast.success(message);
+      await carregar();
+    } catch (error) {
+      appToast.error(error instanceof ApiError ? error.message : "Não foi possível apagar as mensagens.");
+    } finally {
+      setLimpando(false);
+    }
+  }
+
   if (loading) {
     return <DashboardPageLoader label="Carregando WhatsApp..." />;
   }
@@ -321,6 +367,14 @@ export default function WhatsappOverviewPage() {
                 <Button variant="outline" onClick={handleAtualizarStatus}>
                   <RefreshCw className="size-4" />
                   Atualizar status
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={abrirLimpar}
+                  title="Apagar o histórico gravado e recomeçar a captação"
+                >
+                  <Eraser className="size-4 text-red-600" />
+                  Apagar mensagens
                 </Button>
                 <Button variant="ghost" onClick={handleRemover} title="Remover instância e histórico">
                   <Trash2 className="size-4 text-red-600" />
@@ -420,6 +474,62 @@ export default function WhatsappOverviewPage() {
               <RefreshCw className="size-4" />
               Gerar novo QR
             </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={limparOpen} onOpenChange={setLimparOpen}>
+        <SheetContent className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-red-600" />
+              Apagar todas as mensagens
+            </SheetTitle>
+            <SheetDescription>
+              {limparTotal === null
+                ? "Contando as mensagens gravadas..."
+                : `${limparTotal} mensagem(ns) serão apagadas do banco. A partir daí, só entram as que chegarem de agora em diante.`}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 px-4 pb-6">
+            <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+              <p className="font-medium">Não tem como desfazer.</p>
+              <p>
+                A Evolution não guarda cópia do histórico, então as mensagens apagadas não voltam por
+                nenhuma sincronização.
+              </p>
+              <p>
+                Continuam como estão: a conexão do WhatsApp, as automações ligadas, a lista de conversas
+                com os contatos monitorados, as sugestões e os relatórios já gerados. Refeições e
+                lançamentos financeiros criados a partir de mensagens também não são afetados — só perdem
+                o link para a mensagem de origem.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmar-apagar">
+                Digite <span className="font-mono font-semibold">APAGAR</span> para confirmar
+              </Label>
+              <Input
+                id="confirmar-apagar"
+                value={limparTexto}
+                onChange={(e) => setLimparTexto(e.target.value)}
+                autoComplete="off"
+                placeholder="APAGAR"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setLimparOpen(false)} disabled={limpando}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleLimpar}
+                disabled={limparTexto !== "APAGAR" || limpando}
+              >
+                {limpando ? <Spinner data-icon="inline-start" /> : <Eraser className="size-4" />}
+                Apagar mensagens
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

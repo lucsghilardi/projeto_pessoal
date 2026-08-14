@@ -891,6 +891,16 @@ export function deleteWhatsappInstancia() {
     return apiFetch<{ message: string }>('/whatsapp/instancia', { method: 'DELETE' });
 }
 
+export function getWhatsappMensagensTotal() {
+    return apiFetch<{ total: number }>('/whatsapp/mensagens/total');
+}
+
+export function limparWhatsappMensagens() {
+    return apiFetch<{ message: string; deleted: number }>('/whatsapp/mensagens/limpar', {
+        method: 'POST',
+    });
+}
+
 export function getWhatsappQrcode() {
     return apiFetch<WhatsappQrcode>('/whatsapp/instancia/qrcode');
 }

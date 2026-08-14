@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api\Whatsapp;
 
 use App\Http\Controllers\Controller;
+use App\Models\WhatsappChat;
 use App\Models\WhatsappInstancia;
+use App\Models\WhatsappMensagem;
 use App\Services\Whatsapp\EvolutionService;
+use App\Services\Whatsapp\WhatsappConversaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -98,6 +102,56 @@ class InstanciaController extends Controller
         $instancia->delete();
 
         return response()->json(['message' => 'Instância removida com sucesso.']);
+    }
+
+    public function totalMensagens(Request $request): JsonResponse
+    {
+        $instancia = $this->instanciaDoUsuario($request);
+        abort_if($instancia === null, 404, 'Nenhuma instância configurada.');
+
+        return response()->json([
+            'total' => WhatsappMensagem::where('instancia_id', $instancia->id)->count(),
+        ]);
+    }
+
+    /**
+     * Zera o histórico gravado sem mexer na instância: a sessão continua
+     * conectada e o webhook segue apontado para cá, então a captação recomeça
+     * na próxima mensagem que chegar. Não há como desfazer — a Evolution roda
+     * com DATABASE_SAVE_DATA_HISTORIC=false e não guarda cópia.
+     */
+    public function limparMensagens(Request $request, WhatsappConversaService $conversas): JsonResponse
+    {
+        $instancia = $this->instanciaDoUsuario($request);
+        abort_if($instancia === null, 404, 'Nenhuma instância configurada.');
+
+        $apagadas = DB::transaction(function () use ($instancia) {
+            $total = WhatsappMensagem::where('instancia_id', $instancia->id)->delete();
+
+            // O resumo do chat é desnormalizado: sem zerar, as listas de
+            // atenção continuariam cobrando resposta de mensagens que não
+            // existem mais.
+            WhatsappChat::where('instancia_id', $instancia->id)->update([
+                'last_message_id' => null,
+                'last_message_text' => null,
+                'last_message_from_me' => false,
+                'last_message_at' => null,
+                'last_inbound_at' => null,
+                'unread_count' => 0,
+            ]);
+
+            return $total;
+        });
+
+        // Fora da transação: fechar() apaga o anexo em disco, e disco não faz
+        // rollback. Um fluxo pendente do chat-consigo-mesmo apontava para uma
+        // mensagem que acabou de sumir.
+        $conversas->fechar($conversas->paraInstancia($instancia));
+
+        return response()->json([
+            'message' => "{$apagadas} mensagem(ns) apagada(s). A captação recomeça a partir de agora.",
+            'deleted' => $apagadas,
+        ]);
     }
 
     public function qrcode(Request $request): JsonResponse
