@@ -2,8 +2,10 @@
 
 namespace App\Services\Saude;
 
+use App\Models\SaudeCardioDetalhe;
 use App\Models\SaudeCardioSessao;
 use App\Models\SaudeDiaGarmin;
+use App\Models\SaudeMeta;
 use App\Models\SaudeSono;
 use App\Models\SaudeTreino;
 use App\Models\SaudeTreinoSessao;
@@ -65,8 +67,87 @@ class GarminImportService
         $resultado = $this->importarAtividades($user, $de, $ate);
         $resultado['dias'] = $this->importarDias($user, $de, $ate);
         $resultado['sono'] = $this->importarSono($user, $de, $ate);
+        $this->atualizarPerfil($user);
 
         return $resultado;
+    }
+
+    /**
+     * Busca o detalhe de UMA atividade e guarda como cache local.
+     *
+     * Chamado quando alguém abre a corrida no painel, nunca pelo job horário.
+     * Sessão sem `garmin_activity_id` (lançada à mão) não tem o que buscar.
+     */
+    public function importarDetalhe(SaudeCardioSessao $sessao): ?SaudeCardioDetalhe
+    {
+        $garminId = (int) ($sessao->garmin_activity_id ?? 0);
+
+        if ($garminId === 0) {
+            return null;
+        }
+
+        $detalhe = $this->garmin->atividade($garminId);
+
+        if ($detalhe === null) {
+            return null;
+        }
+
+        return SaudeCardioDetalhe::updateOrCreate(
+            ['cardio_sessao_id' => $sessao->id],
+            [
+                'garmin_activity_id' => $garminId,
+                'splits' => $detalhe['splits'] ?? [],
+                'zonas_fc' => $detalhe['zonas_fc'] ?? [],
+                'duracao_seg' => $this->inteiro($detalhe['duracao_seg'] ?? null),
+                'tempo_movimento_seg' => $this->inteiro($detalhe['tempo_movimento_seg'] ?? null),
+                'distancia_m' => $this->inteiro($detalhe['distancia_m'] ?? null),
+                'passos' => $this->inteiro($detalhe['passos'] ?? null),
+                'cadencia_media' => $this->inteiro($detalhe['cadencia_media'] ?? null),
+                'passada_media_cm' => $this->inteiro($detalhe['passada_media_cm'] ?? null),
+                'potencia_media' => $this->inteiro($detalhe['potencia_media'] ?? null),
+                'fc_minima' => $this->inteiro($detalhe['fc_minima'] ?? null),
+                'elevacao_ganho_m' => $this->inteiro($detalhe['elevacao_ganho_m'] ?? null),
+                'elevacao_perda_m' => $this->inteiro($detalhe['elevacao_perda_m'] ?? null),
+                'training_effect_aerobico' => $this->decimal($detalhe['training_effect_aerobico'] ?? null),
+                'training_effect_anaerobico' => $this->decimal($detalhe['training_effect_anaerobico'] ?? null),
+                'vo2max' => $this->decimal($detalhe['vo2max'] ?? null),
+                'sincronizado_em' => CarbonImmutable::now(),
+            ],
+        );
+    }
+
+    /**
+     * Espelha VO2max e limiar de lactato no perfil do painel.
+     *
+     * Nunca derruba o sync: perfil é enfeite perto de importar as atividades, e
+     * conta nova pode não ter esses números ainda.
+     */
+    private function atualizarPerfil(User $user): void
+    {
+        try {
+            $perfil = $this->garmin->perfil();
+        } catch (\Throwable $erro) {
+            Log::info('Garmin: perfil indisponível.', ['erro' => $erro->getMessage()]);
+
+            return;
+        }
+
+        $previsoes = $perfil['previsoes'] ?? [];
+
+        $campos = array_filter([
+            'vo2max' => $this->decimal($perfil['vo2max'] ?? null),
+            'fc_limiar' => $this->inteiro($perfil['fc_limiar'] ?? null),
+            'previsao_5k_seg' => $this->inteiro($previsoes['seg_5k'] ?? null),
+            'previsao_10k_seg' => $this->inteiro($previsoes['seg_10k'] ?? null),
+            'previsao_21k_seg' => $this->inteiro($previsoes['seg_21k'] ?? null),
+            'previsao_42k_seg' => $this->inteiro($previsoes['seg_42k'] ?? null),
+        ], fn ($valor) => $valor !== null);
+
+        if ($campos === []) {
+            return;
+        }
+
+        SaudeMeta::updateOrCreate(['user_id' => $user->id], $campos);
     }
 
     /**
@@ -290,6 +371,11 @@ class GarminImportService
     private function decimal(mixed $valor): ?string
     {
         return $valor === null ? null : (string) round((float) $valor, 1);
+    }
+
+    private function inteiro(mixed $valor): ?int
+    {
+        return $valor === null ? null : (int) round((float) $valor);
     }
 
     /** @param  array<string, mixed>  $atividade */

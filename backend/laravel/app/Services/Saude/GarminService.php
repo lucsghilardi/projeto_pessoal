@@ -52,6 +52,32 @@ class GarminService
         return $resposta->json('atividades', []);
     }
 
+    /**
+     * Detalhe de uma atividade: splits, zonas de FC e métricas finas.
+     *
+     * São três requisições ao Garmin lá dentro, então isto é sob demanda — não
+     * entra no sync horário, que varreria a janela inteira e cairia no
+     * rate-limit.
+     */
+    public function atividade(int $garminActivityId): ?array
+    {
+        $resposta = $this->request()->get('/atividade', ['id' => $garminActivityId]);
+
+        $this->garantirSucesso($resposta);
+
+        return $resposta->json();
+    }
+
+    /** VO2max, limiar e previsões de prova calculados pelo próprio Garmin. */
+    public function perfil(): ?array
+    {
+        $resposta = $this->request()->get('/perfil');
+
+        $this->garantirSucesso($resposta);
+
+        return $resposta->json();
+    }
+
     /** Resumo do dia medido pelo relógio, ou null quando o Garmin não tem o dia. */
     public function dia(string $data): ?array
     {

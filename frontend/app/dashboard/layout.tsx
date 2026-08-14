@@ -23,7 +23,7 @@ import {
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { breadcrumbMap } from "@/lib/breadcrumbs";
+import { rotuloBreadcrumb } from "@/lib/breadcrumbs";
 import { useAuth } from "@/context/AuthContext";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -87,9 +87,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   const href = "/" + segments.slice(0, index + 1).join("/");
                   const isLast = index === segments.length - 1;
 
-                  const label =
-                    breadcrumbMap[segment] ??
-                    segment.charAt(0).toUpperCase() + segment.slice(1);
+                  const label = rotuloBreadcrumb(segment);
 
                   return (
                     <div key={href} className="flex gap-3 items-center">

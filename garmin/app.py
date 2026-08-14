@@ -165,6 +165,134 @@ def atividades(
     }
 
 
+def _cadencia(fonte: dict) -> Any:
+    """Corrida reporta `averageRunCadence`; bike, `averageBikeCadence`."""
+    return fonte.get("averageRunCadence") or fonte.get("averageBikeCadence")
+
+
+@app.get("/atividade", dependencies=[Depends(exigir_token)])
+def atividade(id: Annotated[int, Query(ge=1)]) -> dict:
+    """
+    Detalhe de UMA atividade: splits por km, tempo em cada zona de FC e o resumo
+    completo que o `/atividades` não carrega.
+
+    São três chamadas ao Garmin por atividade, então isto é **sob demanda** — o
+    Laravel chama quando alguém abre a corrida no painel e guarda o resultado.
+    Puxar isso no sync horário multiplicaria as requisições pela janela inteira
+    e derrubaria tudo no rate-limit.
+
+    `duracao_seg` e `distancia_m` vêm daqui com a precisão original: a coluna
+    `duracao_min` do banco é arredondada para minuto inteiro, o que já basta
+    para o resumo semanal mas estraga o cálculo de pace.
+    """
+    bruto = _chamar(cliente().get_activity, id) or {}
+    resumo = bruto.get("summaryDTO") or {}
+
+    splits = _chamar(cliente().get_activity_splits, id) or {}
+    voltas = splits.get("lapDTOs") or []
+
+    # A rota devolve lista, apesar do type hint da lib dizer dict.
+    zonas = _chamar(cliente().get_activity_hr_in_timezones, id) or []
+    if isinstance(zonas, dict):
+        zonas = zonas.get("hrTimeInZones") or []
+
+    return {
+        "id": bruto.get("activityId") or id,
+        "nome": bruto.get("activityName"),
+        "tipo": (bruto.get("activityTypeDTO") or {}).get("typeKey"),
+        "inicio_local": resumo.get("startTimeLocal"),
+        "duracao_seg": resumo.get("duration"),
+        "tempo_movimento_seg": resumo.get("movingDuration"),
+        "distancia_m": resumo.get("distance"),
+        "velocidade_media_mps": resumo.get("averageSpeed"),
+        "velocidade_max_mps": resumo.get("maxSpeed"),
+        "fc_media": resumo.get("averageHR"),
+        "fc_maxima": resumo.get("maxHR"),
+        "fc_minima": resumo.get("minHR"),
+        "calorias": resumo.get("calories"),
+        "cadencia_media": _cadencia(resumo),
+        "cadencia_maxima": resumo.get("maxRunCadence"),
+        # O Garmin manda a passada em centímetros.
+        "passada_media_cm": resumo.get("strideLength"),
+        "tempo_solo_ms": resumo.get("groundContactTime"),
+        "oscilacao_vertical_cm": resumo.get("verticalOscillation"),
+        "passos": resumo.get("steps"),
+        "potencia_media": resumo.get("averagePower"),
+        "potencia_normalizada": resumo.get("normalizedPower"),
+        "training_effect_aerobico": resumo.get("trainingEffect"),
+        "training_effect_anaerobico": resumo.get("anaerobicTrainingEffect"),
+        "carga_treino": resumo.get("activityTrainingLoad"),
+        "vo2max": resumo.get("vO2MaxValue"),
+        "elevacao_ganho_m": resumo.get("elevationGain"),
+        "elevacao_perda_m": resumo.get("elevationLoss"),
+        "fc_recuperacao": resumo.get("recoveryHeartRate"),
+        "splits": [
+            {
+                "numero": volta.get("lapIndex"),
+                "distancia_m": volta.get("distance"),
+                "duracao_seg": volta.get("duration"),
+                "tempo_movimento_seg": volta.get("movingDuration"),
+                "velocidade_media_mps": volta.get("averageSpeed"),
+                "velocidade_max_mps": volta.get("maxSpeed"),
+                "fc_media": volta.get("averageHR"),
+                "fc_maxima": volta.get("maxHR"),
+                "cadencia": _cadencia(volta),
+                "potencia": volta.get("averagePower"),
+                "calorias": volta.get("calories"),
+                "elevacao_ganho_m": volta.get("elevationGain"),
+                "elevacao_perda_m": volta.get("elevationLoss"),
+            }
+            for volta in voltas
+        ],
+        "zonas_fc": [
+            {
+                "zona": zona.get("zoneNumber"),
+                "segundos": zona.get("secsInZone"),
+                "fc_minima": zona.get("zoneLowBoundary"),
+            }
+            for zona in zonas
+        ],
+    }
+
+
+@app.get("/perfil", dependencies=[Depends(exigir_token)])
+def perfil() -> dict:
+    """
+    Os números que o próprio Garmin calcula sobre a forma física: VO2max, limiar
+    de lactato e previsões de prova. É a base do comparativo do painel, e muda
+    devagar — o Laravel atualiza junto com o sync normal.
+
+    As previsões falham sozinhas em conta nova (sem histórico o Garmin não
+    prediz nada), então elas não podem derrubar o resto do payload.
+    """
+    dados = _chamar(cliente().get_user_profile) or {}
+    usuario = dados.get("userData") or {}
+
+    try:
+        previsoes = cliente().get_race_predictions() or {}
+    except Exception as erro:
+        logger.info("Sem previsões de prova: %s", erro)
+        previsoes = {}
+
+    return {
+        "sexo": usuario.get("gender"),
+        "nascimento": usuario.get("birthDate"),
+        # O Garmin guarda o peso em gramas.
+        "peso_g": usuario.get("weight"),
+        "altura_cm": usuario.get("height"),
+        "vo2max": usuario.get("vo2MaxRunning"),
+        "fc_limiar": usuario.get("lactateThresholdHeartRate"),
+        "velocidade_limiar_mps": usuario.get("lactateThresholdSpeed"),
+        "previsoes": {
+            "data": previsoes.get("calendarDate"),
+            "seg_5k": previsoes.get("time5K"),
+            "seg_10k": previsoes.get("time10K"),
+            "seg_21k": previsoes.get("timeHalfMarathon"),
+            "seg_42k": previsoes.get("timeMarathon"),
+        },
+    }
+
+
 @app.get("/dia", dependencies=[Depends(exigir_token)])
 def dia(data: Annotated[str, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")]) -> dict:
     """

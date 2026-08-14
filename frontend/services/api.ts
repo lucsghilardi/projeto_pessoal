@@ -88,6 +88,9 @@ import {
     WhatsappSugestaoStatus,
 } from '@/types/Whatsapp';
 import {
+    SaudeCardioAnaliseIA,
+    SaudeCardioDetalhe,
+    SaudeCardioDetalhePagina,
     SaudeCardioResumo,
     SaudeCardioSessao,
     SaudeCardioSessaoPayload,
@@ -1079,6 +1082,27 @@ export function getSaudeCardioResumo(de?: string, ate?: string) {
     const qs = params.toString();
 
     return apiFetch<SaudeCardioResumo>(`/saude/cardio/resumo${qs ? `?${qs}` : ''}`);
+}
+
+/** A corrida inteira: detalhe do relógio, comparativo, evolução e análise da IA. */
+export function getSaudeCardioSessao(id: number) {
+    return apiFetch<SaudeCardioDetalhePagina>(`/saude/cardio/${id}`);
+}
+
+/**
+ * Busca splits e zonas de FC no Garmin. São três requisições lá dentro, então
+ * a tela chama uma vez só, quando a corrida ainda não tem detalhe.
+ */
+export function sincronizarSaudeCardioDetalhe(id: number) {
+    return apiFetch<SaudeCardioDetalhe>(`/saude/cardio/${id}/detalhe`, { method: 'POST' });
+}
+
+/** Gera a análise por IA. Sem `forcar`, devolve a que já estiver salva. */
+export function analisarSaudeCardio(id: number, forcar = false) {
+    return apiFetch<SaudeCardioAnaliseIA>(`/saude/cardio/${id}/analise`, {
+        method: 'POST',
+        body: JSON.stringify({ forcar }),
+    });
 }
 
 export function createSaudeCardio(data: SaudeCardioSessaoPayload) {

@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InvestmentController;
 use App\Http\Controllers\Api\InvestmentInstitutionController;
 use App\Http\Controllers\Api\InvestmentTagController;
+use App\Http\Controllers\Api\Saude\CardioAnaliseController;
 use App\Http\Controllers\Api\Saude\CardioSessaoController;
 use App\Http\Controllers\Api\Saude\ExercicioController;
 use App\Http\Controllers\Api\Saude\GarminController;
@@ -200,8 +201,12 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/cardio/resumo', [CardioSessaoController::class, 'resumo']);
         Route::get('/cardio', [CardioSessaoController::class, 'index']);
         Route::post('/cardio', [CardioSessaoController::class, 'store']);
+        Route::get('/cardio/{cardio}', [CardioSessaoController::class, 'show']);
         Route::put('/cardio/{cardio}', [CardioSessaoController::class, 'update']);
         Route::delete('/cardio/{cardio}', [CardioSessaoController::class, 'destroy']);
+        // Splits e zonas de FC: buscados no Garmin sob demanda, ao abrir a corrida.
+        Route::post('/cardio/{cardio}/detalhe', [CardioSessaoController::class, 'detalhe']);
+        Route::post('/cardio/{cardio}/analise', [CardioAnaliseController::class, 'gerar']);
 
         // Garmin Connect (via sidecar Python; ver config/garmin.php).
         Route::get('/garmin/status', [GarminController::class, 'status']);

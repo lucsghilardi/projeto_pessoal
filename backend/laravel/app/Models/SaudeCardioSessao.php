@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SaudeCardioSessao extends Model
 {
@@ -45,5 +46,16 @@ class SaudeCardioSessao extends Model
     public function treino(): BelongsTo
     {
         return $this->belongsTo(SaudeTreino::class, 'treino_id');
+    }
+
+    /** Splits e zonas de FC. Null enquanto ninguém abriu a corrida no painel. */
+    public function detalhe(): HasOne
+    {
+        return $this->hasOne(SaudeCardioDetalhe::class, 'cardio_sessao_id');
+    }
+
+    public function analise(): HasOne
+    {
+        return $this->hasOne(SaudeCardioAnalise::class, 'cardio_sessao_id');
     }
 }

@@ -24,4 +24,10 @@ return [
         'calorias_minimas' => ['M' => 1500, 'F' => 1200],
     ],
 
+    'cardio' => [
+        // Modelo que lê a corrida no papel de personal + nutricionista. É uma
+        // análise longa, com muito número de contexto: vale um modelo forte.
+        'model' => env('ANTHROPIC_CARDIO_MODEL', 'claude-sonnet-5'),
+    ],
+
 ];

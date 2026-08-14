@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Api\Saude;
 
 use App\Http\Controllers\Controller;
 use App\Models\SaudeCardioSessao;
+use App\Services\Saude\GarminImportService;
+use App\Services\Saude\SaudeCardioAnaliseService;
 use App\Services\Saude\SaudeCardioService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class CardioSessaoController extends Controller
 {
@@ -50,6 +54,74 @@ class CardioSessaoController extends Controller
             'ate' => $ate,
             ...$cardio->resumo($request->user()->id, $de, $ate),
         ]);
+    }
+
+    /**
+     * A corrida inteira: sessão, detalhe do relógio, comparativo, evolução e a
+     * análise da IA se já existir. Só lê — não fala com o Garmin.
+     */
+    public function show(
+        Request $request,
+        SaudeCardioSessao $cardio,
+        SaudeCardioAnaliseService $analise,
+    ): JsonResponse {
+        $this->authorizeOwnership($request, $cardio);
+
+        $cardio->load(['treino:id,nome', 'detalhe', 'analise']);
+        $detalhe = $cardio->detalhe;
+
+        return response()->json([
+            'sessao' => $cardio->only([
+                'id', 'treino_id', 'data', 'horario', 'nome', 'modalidade', 'duracao_min',
+                'distancia_km', 'calorias', 'fc_media', 'fc_maxima', 'intensidade',
+                'origem', 'garmin_activity_id', 'observacao',
+            ]) + ['treino' => $cardio->treino],
+            'detalhe' => $detalhe,
+            'metricas' => $analise->metricas($cardio, $detalhe),
+            'splits' => $analise->analiseSplits($detalhe),
+            'benchmarks' => $analise->benchmarks($request->user(), $cardio, $detalhe),
+            'evolucao' => $analise->evolucao($request->user(), $cardio),
+            'analise' => $cardio->analise,
+        ]);
+    }
+
+    /**
+     * Busca os splits e as zonas de FC no Garmin, sob demanda.
+     *
+     * São três requisições ao Garmin, então o front chama isto uma vez, quando
+     * abre uma corrida que ainda não tem detalhe. O lock evita que duas abas
+     * (ou um duplo clique) disparem a mesma busca em paralelo.
+     */
+    public function detalhe(
+        Request $request,
+        SaudeCardioSessao $cardio,
+        GarminImportService $import,
+    ): JsonResponse {
+        $this->authorizeOwnership($request, $cardio);
+
+        if ($cardio->garmin_activity_id === null) {
+            return response()->json([
+                'message' => 'Esta sessão foi lançada à mão: não há detalhe no Garmin para buscar.',
+            ], 422);
+        }
+
+        $chave = "saude:cardio:detalhe:{$cardio->id}";
+
+        if (! Cache::add($chave, now()->toIso8601String(), now()->addMinutes(5))) {
+            return response()->json(['message' => 'Já existe uma busca em andamento para esta corrida.'], 409);
+        }
+
+        try {
+            $detalhe = $import->importarDetalhe($cardio);
+        } catch (RuntimeException $erro) {
+            Cache::forget($chave);
+
+            return response()->json(['message' => $erro->getMessage()], 422);
+        }
+
+        Cache::forget($chave);
+
+        return response()->json($detalhe);
     }
 
     /** Lançamento manual (o import do Garmin escreve pelo GarminImportService). */

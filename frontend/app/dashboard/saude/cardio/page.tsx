@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   Bar,
@@ -85,6 +86,7 @@ function formatRitmo(minutos: number, km: number) {
 }
 
 export default function CardioPage() {
+  const router = useRouter();
   const [sessoes, setSessoes] = useState<SaudeCardioSessao[]>([]);
   const [treinos, setTreinos] = useState<SaudeTreino[]>([]);
   const [resumo, setResumo] = useState<SaudeCardioResumo | null>(null);
@@ -319,7 +321,11 @@ export default function CardioPage() {
                   const km = sessao.distancia_km ? toNumber(sessao.distancia_km) : 0;
 
                   return (
-                    <TableRow key={sessao.id}>
+                    <TableRow
+                      key={sessao.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/dashboard/saude/cardio/${sessao.id}`)}
+                    >
                       <TableCell className="tabular-nums">
                         {formatFullDate(sessao.data)}
                         {sessao.horario ? (
@@ -353,12 +359,16 @@ export default function CardioPage() {
                       <TableCell className="text-center tabular-nums">
                         {sessao.calorias ?? "—"}
                       </TableCell>
+                      {/* A linha inteira navega: os botões param a propagação
+                          para não abrir o detalhe junto com editar/excluir. */}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => {
+                            aria-label="Editar sessão"
+                            onClick={(event) => {
+                              event.stopPropagation();
                               setEditing(sessao);
                               setSheetOpen(true);
                             }}
@@ -368,7 +378,11 @@ export default function CardioPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(sessao)}
+                            aria-label="Excluir sessão"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDelete(sessao);
+                            }}
                           >
                             <Trash2 className="size-4 text-red-600" />
                           </Button>

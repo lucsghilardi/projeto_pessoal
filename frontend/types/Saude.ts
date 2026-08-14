@@ -164,6 +164,177 @@ export type SaudeGarminAutoSync = {
   ignorados?: number;
 };
 
+/** Uma volta do relógio. Distância e duração vêm com a precisão original. */
+export type SaudeCardioSplit = {
+  numero: number;
+  distancia_m: number;
+  duracao_seg: number;
+  pace_seg_km: number;
+  fc_media: number | null;
+  fc_maxima: number | null;
+  cadencia: number | null;
+  elevacao_ganho_m: number | null;
+};
+
+export type SaudeCardioZonaFc = {
+  zona: number;
+  segundos: number;
+  fc_minima: number | null;
+};
+
+/**
+ * Detalhe buscado no Garmin sob demanda. `null` na resposta significa que
+ * ninguém abriu esta corrida ainda — o front dispara a busca uma vez.
+ */
+export type SaudeCardioDetalhe = {
+  id: number;
+  cardio_sessao_id: number;
+  garmin_activity_id: number;
+  splits: SaudeCardioSplit[] | null;
+  zonas_fc: SaudeCardioZonaFc[] | null;
+  duracao_seg: number | null;
+  tempo_movimento_seg: number | null;
+  distancia_m: number | null;
+  passos: number | null;
+  cadencia_media: number | null;
+  passada_media_cm: number | null;
+  potencia_media: number | null;
+  fc_minima: number | null;
+  elevacao_ganho_m: number | null;
+  elevacao_perda_m: number | null;
+  /** Decimais serializados como string. */
+  training_effect_aerobico: string | null;
+  training_effect_anaerobico: string | null;
+  vo2max: string | null;
+  sincronizado_em: string | null;
+};
+
+/** Duração e distância exatas quando `fonte` é "garmin"; arredondadas se "sessao". */
+export type SaudeCardioMetricas = {
+  duracao_seg: number | null;
+  distancia_km: number | null;
+  pace_seg_km: number | null;
+  fonte: "garmin" | "sessao";
+};
+
+export type SaudeCardioPacingVeredito =
+  | "negative_split"
+  | "even"
+  | "positive_split"
+  | "irregular"
+  | "indefinido";
+
+/** Leitura dos splits calculada no backend (a IA não recalcula nada disso). */
+export type SaudeCardioAnaliseSplits = {
+  voltas: SaudeCardioSplit[];
+  pace_medio_seg_km: number;
+  primeira_metade_seg_km: number | null;
+  segunda_metade_seg_km: number | null;
+  variacao_pct: number | null;
+  veredito: SaudeCardioPacingVeredito;
+  deriva_fc_bpm: number | null;
+  desvio_pace_seg: number;
+};
+
+export type SaudeCardioPercentil = {
+  percentil: number;
+  classificacao: string;
+  mediana: number;
+};
+
+/**
+ * Comparativo com as normas da faixa etária.
+ *
+ * `vo2max_relogio` é a estimativa do Garmin (por FC e ritmo) e
+ * `vo2max_desempenho` é o VDOT do tempo real desta corrida. Divergir é comum e
+ * significativo — a tela mostra os dois em vez de escolher um.
+ */
+export type SaudeCardioBenchmarks = {
+  idade: number | null;
+  sexo: "M" | "F" | null;
+  peso_kg: number | null;
+  fc_maxima: number | null;
+  /** true quando a FC máxima veio da fórmula de Tanaka, não de um teste. */
+  fc_maxima_estimada: boolean;
+  fc_limiar: number | null;
+  /**
+   * true quando a FC média passou de 88% da máxima — esforço de prova.
+   * Sendo false, `vo2max_desempenho` e `age_grade` descrevem esta corrida, não
+   * o condicionamento: um treino leve derruba o VDOT de qualquer atleta.
+   */
+  esforco_maximo: boolean;
+  esforco_fracao_fcmax: number | null;
+  vo2max_relogio: number | null;
+  vo2max_desempenho: number | null;
+  percentil: SaudeCardioPercentil | null;
+  /** Só vem preenchido quando `esforco_maximo` é true. */
+  percentil_desempenho: SaudeCardioPercentil | null;
+  /** Curva da faixa etária: { "5": 27.2, "50": 42.4, ... } */
+  faixa_vo2max: Record<string, number> | null;
+  idade_fitness: number | null;
+  age_grade: {
+    percentual: number;
+    distancia_referencia: number;
+    tempo_normalizado: number;
+    tempo_padrao: number;
+  } | null;
+  projecoes: {
+    /** "garmin" = previsão do relógio; "corrida" = derivada desta sessão. */
+    fonte: "garmin" | "corrida";
+    /** Segundos por prova: { "5k": 1553, "10k": 3387, ... } */
+    tempos: Record<string, number>;
+  } | null;
+  projecao_peso: {
+    peso_alvo_kg: number;
+    vo2max_projetado: number;
+    pace_atual_seg_km: number;
+    pace_projetado_seg_km: number;
+    ganho_seg_km: number;
+  } | null;
+};
+
+export type SaudeCardioEvolucao = {
+  id: number;
+  data: string;
+  distancia_km: number | null;
+  duracao_min: number;
+  pace_seg_km: number | null;
+  fc_media: number | null;
+  /** Batimentos gastos por km — melhora antes do pace quando a forma sobe. */
+  batimentos_por_km: number | null;
+  atual: boolean;
+};
+
+export type SaudeCardioAnaliseIA = {
+  id: number;
+  cardio_sessao_id: number;
+  modelo: string;
+  gerado_em: string;
+  dados: {
+    nota_geral: number;
+    resumo: string;
+    pacing: { veredito: SaudeCardioPacingVeredito; comentario: string };
+    esforco: { zona_predominante: string; deriva_cardiaca: string; comentario: string };
+    pontos_fortes: string[];
+    pontos_de_atencao: string[];
+    comparativo: string;
+    nutricao: { pre_treino: string; durante: string; pos_treino: string; hidratacao: string };
+    proximo_treino: { tipo: string; descricao: string; quando: string };
+    meta_curto_prazo: string;
+  };
+};
+
+/** Payload de GET /saude/cardio/{id}. */
+export type SaudeCardioDetalhePagina = {
+  sessao: SaudeCardioSessao;
+  detalhe: SaudeCardioDetalhe | null;
+  metricas: SaudeCardioMetricas;
+  splits: SaudeCardioAnaliseSplits | null;
+  benchmarks: SaudeCardioBenchmarks;
+  evolucao: SaudeCardioEvolucao[];
+  analise: SaudeCardioAnaliseIA | null;
+};
+
 export type SaudeCardioResumo = {
   de: string;
   ate: string;
@@ -256,6 +427,11 @@ export type SaudeMeta = {
   /** "YYYY-MM-DD" */
   data_nascimento: string | null;
   nivel_atividade: SaudeNivelAtividade | null;
+  /** FC máxima medida em teste. Vazio faz o cardio estimar por idade (Tanaka). */
+  fc_maxima: number | null;
+  /** Espelho do que o Garmin calcula; o sync sobrescreve. Decimal como string. */
+  vo2max: string | null;
+  fc_limiar: number | null;
   /** Ligado: TDEE = TMB × fator_base + gasto real do dia (ignora nivel_atividade). */
   gasto_dinamico: boolean;
   /** Decimal serializado como string (ex.: "1.20"). Padrão 1,20. */
@@ -274,6 +450,7 @@ export type SaudeMetaPayload = {
   sexo?: "M" | "F" | null;
   data_nascimento?: string | null;
   nivel_atividade?: SaudeNivelAtividade | null;
+  fc_maxima?: number | null;
   gasto_dinamico?: boolean;
   fator_base?: number | null;
   calorias_alvo?: number | null;

@@ -1,3 +1,7 @@
+/**
+ * Rótulo de cada segmento de rota. Segmento não mapeado cai no fallback do
+ * layout (primeira letra maiúscula) — ver `rotuloBreadcrumb`.
+ */
 export const breadcrumbMap: Record<string, string> = {
   dashboard: "Dashboard",
   tarefas: "Tarefas",
@@ -28,3 +32,16 @@ export const breadcrumbMap: Record<string, string> = {
   cardio: "Cardio",
   peso: "Peso",
 };
+
+/**
+ * Rótulo de um segmento da URL.
+ *
+ * Rotas de detalhe terminam num id numérico (/saude/cardio/42), que sem
+ * tratamento apareceria cru na trilha. "Detalhe" diz mais do que "42".
+ */
+export function rotuloBreadcrumb(segment: string): string {
+  if (breadcrumbMap[segment]) return breadcrumbMap[segment];
+  if (/^\d+$/.test(segment)) return "Detalhe";
+
+  return segment.charAt(0).toUpperCase() + segment.slice(1);
+}

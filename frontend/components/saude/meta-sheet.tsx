@@ -50,6 +50,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
   const [sexo, setSexo] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [atividade, setAtividade] = useState("");
+  const [fcMaxima, setFcMaxima] = useState("");
   const [gastoDinamico, setGastoDinamico] = useState(false);
   const [caloriasAlvo, setCaloriasAlvo] = useState("");
   const [proteinasAlvo, setProteinasAlvo] = useState("");
@@ -73,6 +74,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
     setSexo(meta?.sexo ?? "");
     setNascimento(meta?.data_nascimento ? meta.data_nascimento.slice(0, 10) : "");
     setAtividade(meta?.nivel_atividade ?? "sedentario");
+    setFcMaxima(meta?.fc_maxima != null ? String(meta.fc_maxima) : "");
     setGastoDinamico(meta?.gasto_dinamico ?? false);
     setCaloriasAlvo(meta?.calorias_alvo != null ? String(meta.calorias_alvo) : "");
     setProteinasAlvo(meta?.proteinas_alvo_g != null ? String(meta.proteinas_alvo_g) : "");
@@ -109,6 +111,7 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
         sexo: sexo === "M" || sexo === "F" ? sexo : null,
         data_nascimento: nascimento || null,
         nivel_atividade: (atividade || null) as SaudeNivelAtividade | null,
+        fc_maxima: fcMaxima.trim() ? Number(fcMaxima) : null,
         gasto_dinamico: gastoDinamico,
         calorias_alvo: caloriasAlvo.trim() ? Number(caloriasAlvo) : null,
         proteinas_alvo_g: proteinasAlvo.trim() ? Number(proteinasAlvo) : null,
@@ -192,6 +195,23 @@ export function MetaSheet({ open, onOpenChange, meta, onSaved }: Props) {
                 </Select>
               </Field>
             </div>
+
+            <Field>
+              <FieldLabel htmlFor="meta-fc-maxima">FC máxima (bpm)</FieldLabel>
+              <Input
+                id="meta-fc-maxima"
+                type="number"
+                min={120}
+                max={230}
+                value={fcMaxima}
+                onChange={(e) => setFcMaxima(e.target.value)}
+                placeholder="182"
+              />
+              <FieldDescription>
+                Só preencha se mediu num teste. Em branco, a análise de cardio estima pela
+                idade (Tanaka), que erra fácil em 10 bpm.
+              </FieldDescription>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field>
