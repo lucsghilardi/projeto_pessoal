@@ -38,6 +38,7 @@ import {
 import {
     CreditCard,
     CreditCardInvoice,
+    CreditCardInvoiceForecast,
     CreditCardInvoicePaymentPayload,
     CreditCardPayload,
     CreditCardsResponse,
@@ -593,6 +594,12 @@ export function resolveCreditCardInvoice(cardId: number, date: string) {
 
 export function getCreditCardInvoice(cardId: number, month: string) {
     return apiFetch<CreditCardInvoice>(`/finance/credit-cards/${cardId}/invoices?month=${month}`);
+}
+
+/** Previsão das faturas do mês (todos os cartões), usada em Contas a pagar. */
+export function getCreditCardInvoicesForecast(month?: string) {
+    const query = month ? `?month=${month}` : '';
+    return apiFetch<CreditCardInvoiceForecast[]>(`/finance/credit-cards/invoices/forecast${query}`);
 }
 
 export function createCreditCardTransaction(data: CreditCardTransactionPayload) {

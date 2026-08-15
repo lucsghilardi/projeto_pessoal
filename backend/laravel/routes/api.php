@@ -140,6 +140,8 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::apiResource('acertos', AcertoController::class)->except(['show']);
 
         // Cartões de crédito (cartão -> fatura -> lançamentos + pagamentos)
+        // Previsão das faturas do mês, consumida pela tela de Contas a pagar.
+        Route::get('/credit-cards/invoices/forecast', [CreditCardInvoiceController::class, 'forecast']);
         Route::get('/credit-cards/{creditCard}/resolve-invoice', [CreditCardTransactionController::class, 'resolveInvoice']);
         Route::get('/credit-cards/{creditCard}/invoices', [CreditCardInvoiceController::class, 'index']);
         Route::post('/credit-cards/invoices/{invoice}/payments', [CreditCardInvoiceController::class, 'pay']);

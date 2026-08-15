@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import Link from "next/link";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CreditCard as CreditCardIcon,
+  ExternalLink,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 
 import { DashboardPageHeader } from "@/components/dashboard/page-header";
 import { DashboardPageLoader } from "@/components/dashboard/page-loader";
@@ -13,6 +25,7 @@ import {
   createPayable,
   deletePayable,
   getBankAccounts,
+  getCreditCardInvoicesForecast,
   getFinanceCategories,
   getPayables,
   payPayable,
@@ -20,6 +33,7 @@ import {
   updatePayable,
 } from "@/services/api";
 import { ApiError } from "@/services/apiError";
+import type { CreditCardInvoiceForecast } from "@/types/CreditCard";
 import type { BankAccount, FinanceCategory, Payable, PayableKind } from "@/types/Finance";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +70,79 @@ const KIND_LABELS: Record<PayableKind, string> = {
   parcelada: "Parcelada",
 };
 
+/**
+ * A tabela mistura contas a pagar (registros do banco) com a previsão das faturas
+ * de cartão (calculada, somente leitura). `sortDate`/`sortLabel` reproduzem no
+ * cliente o orderBy('due_date')->orderBy('description') que o backend aplica.
+ */
+type PayablesRow =
+  | { kind: "payable"; key: string; sortDate: string; sortLabel: string; payable: Payable }
+  | { kind: "invoice"; key: string; sortDate: string; sortLabel: string; invoice: CreditCardInvoiceForecast };
+
+type InvoiceVisual = {
+  row: string;
+  muted: boolean;
+  badge: string;
+  label: string;
+  icon: React.ReactNode;
+};
+
+/**
+ * Estados visuais da linha de fatura. `opacity-60` é reservado para "pago" (mesmo
+ * sinal das contas a pagar); enquanto o ciclo não fecha a linha usa fundo/texto
+ * apagados para dizer "previsão", sem parecer concluída. A fatura paga vem antes
+ * de tudo: paga adiantado não deve ficar com cara de previsão.
+ */
+function invoiceVisual(invoice: CreditCardInvoiceForecast): InvoiceVisual {
+  if (invoice.total > 0 && invoice.paid_total >= invoice.total) {
+    return {
+      row: "opacity-60",
+      muted: false,
+      badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      label: "Paga",
+      icon: <Check className="size-3" />,
+    };
+  }
+
+  if (!invoice.is_closed) {
+    return {
+      row: "bg-muted/40",
+      muted: true,
+      badge: "border-dashed border-slate-300 bg-transparent text-muted-foreground",
+      label: "Em aberto",
+      icon: <Clock className="size-3" />,
+    };
+  }
+
+  if (invoice.paid_total > 0) {
+    return {
+      row: "",
+      muted: false,
+      badge: "border-sky-200 bg-sky-50 text-sky-700",
+      label: "Parcial",
+      icon: null,
+    };
+  }
+
+  if (invoice.total === 0) {
+    return {
+      row: "",
+      muted: true,
+      badge: "border-slate-200 bg-slate-50 text-slate-600",
+      label: "Sem gastos",
+      icon: null,
+    };
+  }
+
+  return {
+    row: "",
+    muted: false,
+    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    label: "Fechada",
+    icon: null,
+  };
+}
+
 type FormState = {
   description: string;
   category_id: string;
@@ -78,6 +165,7 @@ export default function PayablesPage() {
   const { formatCurrency } = usePrivateFormat();
   const [month, setMonth] = useState(currentMonth());
   const [payables, setPayables] = useState<Payable[]>([]);
+  const [invoices, setInvoices] = useState<CreditCardInvoiceForecast[]>([]);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,22 +182,31 @@ export default function PayablesPage() {
   const [savingPay, setSavingPay] = useState(false);
 
   async function loadMonth(targetMonth: string) {
-    setPayables(await getPayables(targetMonth));
+    const [list, forecast] = await Promise.all([
+      getPayables(targetMonth),
+      getCreditCardInvoicesForecast(targetMonth),
+    ]);
+    setPayables(list);
+    setInvoices(forecast);
   }
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [list, cats, acc] = await Promise.all([
+        const [list, cats, acc, forecast] = await Promise.all([
           getPayables(month),
           getFinanceCategories("despesa"),
           getBankAccounts(),
+          // A previsão do cartão é complementar: se o módulo falhar, a tela de
+          // contas a pagar continua funcionando.
+          getCreditCardInvoicesForecast(month).catch(() => [] as CreditCardInvoiceForecast[]),
         ]);
         if (mounted) {
           setPayables(list);
           setCategories(cats);
           setAccounts(acc.accounts);
+          setInvoices(forecast);
         }
       } catch (error) {
         appToast.error(error instanceof ApiError ? error.message : "Não foi possível carregar as contas.");
@@ -122,9 +219,38 @@ export default function PayablesPage() {
     };
   }, [month]);
 
-  const total = payables.reduce((sum, p) => sum + toNumber(p.amount), 0);
-  const paid = payables.filter((p) => p.is_paid).reduce((sum, p) => sum + toNumber(p.amount), 0);
+  // As faturas entram nos totais fechadas ou não — é o que vai sair no mês.
+  // "Pago" usa paid_total (e não um booleano) porque fatura aceita baixa parcial.
+  const total =
+    payables.reduce((sum, p) => sum + toNumber(p.amount), 0) +
+    invoices.reduce((sum, i) => sum + i.total, 0);
+  const paid =
+    payables.filter((p) => p.is_paid).reduce((sum, p) => sum + toNumber(p.amount), 0) +
+    invoices.reduce((sum, i) => sum + i.paid_total, 0);
   const pending = total - paid;
+
+  const rows: PayablesRow[] = [
+    ...payables.map((payable): PayablesRow => ({
+      kind: "payable",
+      key: `payable-${payable.id}`,
+      sortDate: payable.due_date.slice(0, 10),
+      sortLabel: payable.description,
+      payable,
+    })),
+    ...invoices.map((invoice): PayablesRow => ({
+      kind: "invoice",
+      // invoice_id é null enquanto a fatura não existe no banco: a chave estável é o cartão.
+      key: `invoice-${invoice.credit_card_id}`,
+      sortDate: invoice.due_date.slice(0, 10),
+      sortLabel: `Fatura ${invoice.card_name}`,
+      invoice,
+    })),
+  ].sort((a, b) => {
+    if (a.sortDate !== b.sortDate) return a.sortDate < b.sortDate ? -1 : 1;
+    // No mesmo dia, as contas vêm antes das faturas.
+    if (a.kind !== b.kind) return a.kind === "payable" ? -1 : 1;
+    return a.sortLabel.localeCompare(b.sortLabel, "pt-BR");
+  });
 
   function openCreate() {
     setEditing(null);
@@ -291,10 +417,13 @@ export default function PayablesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Lançamentos de {monthLabel(month)}</CardTitle>
-          <CardDescription>{payables.length} conta(s) no mês.</CardDescription>
+          <CardDescription>
+            {payables.length} conta(s)
+            {invoices.length > 0 ? ` e ${invoices.length} fatura(s) de cartão` : ""} no mês.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {payables.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma conta neste mês. Clique em “Nova conta”.
             </p>
@@ -312,61 +441,121 @@ export default function PayablesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payables.map((payable) => (
-                    <TableRow key={payable.id} className={payable.is_paid ? "opacity-60" : ""}>
-                      <TableCell>
-                        {payable.is_paid ? (
-                          <div className="space-y-0.5">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                              <Check className="size-3" /> Pago
+                  {rows.map((row) => {
+                    if (row.kind === "invoice") {
+                      const invoice = row.invoice;
+                      const visual = invoiceVisual(invoice);
+
+                      return (
+                        <TableRow key={row.key} className={visual.row}>
+                          <TableCell>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${visual.badge}`}
+                            >
+                              {visual.icon}
+                              {visual.label}
                             </span>
-                            {payable.bank_account ? (
-                              <div className="text-xs text-muted-foreground">via {payable.bank_account.name}</div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <Button variant="outline" size="sm" onClick={() => openPay(payable)}>
-                            Dar baixa
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{payable.description}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {payable.kind === "parcelada" && payable.installment_number
-                            ? `Parcela ${payable.installment_number}/${payable.installments_total}`
-                            : KIND_LABELS[payable.kind]}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {payable.category ? (
-                          <span className="inline-flex items-center gap-1.5 text-sm">
-                            <span className="size-2.5 rounded-full" style={{ backgroundColor: payable.category.color }} />
-                            {payable.category.name}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="tabular-nums">{formatDate(payable.due_date)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatCurrency(toNumber(payable.amount))}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                          </TableCell>
+                          <TableCell>
+                            <div className={`font-medium ${visual.muted ? "text-muted-foreground" : ""}`}>
+                              Fatura {invoice.card_name}
+                              {invoice.last_four ? (
+                                <span className="text-muted-foreground"> ····{invoice.last_four}</span>
+                              ) : null}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {invoice.is_closed
+                                ? `Fechou em ${formatDate(invoice.closing_date)}`
+                                : `Previsão · fecha em ${formatDate(invoice.closing_date)}`}
+                              {!invoice.card_is_active ? " · cartão inativo" : ""}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <CreditCardIcon className="size-3.5" />
+                              Cartão de crédito
+                            </span>
+                          </TableCell>
+                          <TableCell className={`tabular-nums ${visual.muted ? "text-muted-foreground" : ""}`}>
+                            {formatDate(invoice.due_date)}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right tabular-nums ${visual.muted ? "text-muted-foreground" : ""}`}
+                          >
+                            {formatCurrency(invoice.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {/* O pagamento da fatura (inclusive parcial) fica na tela do cartão. */}
+                              <Button variant="ghost" size="icon" title="Abrir fatura do cartão" asChild>
+                                <Link href={`/dashboard/finance/credit-cards/${invoice.credit_card_id}`}>
+                                  <ExternalLink className="size-4" />
+                                </Link>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    const payable = row.payable;
+
+                    return (
+                      <TableRow key={row.key} className={payable.is_paid ? "opacity-60" : ""}>
+                        <TableCell>
                           {payable.is_paid ? (
-                            <Button variant="ghost" size="icon" title="Estornar baixa" onClick={() => handleUnpay(payable)}>
-                              <RotateCcw className="size-4 text-amber-600" />
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                <Check className="size-3" /> Pago
+                              </span>
+                              {payable.bank_account ? (
+                                <div className="text-xs text-muted-foreground">via {payable.bank_account.name}</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => openPay(payable)}>
+                              Dar baixa
                             </Button>
-                          ) : null}
-                          <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(payable)}>
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDelete(payable)}>
-                            <Trash2 className="size-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{payable.description}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {payable.kind === "parcelada" && payable.installment_number
+                              ? `Parcela ${payable.installment_number}/${payable.installments_total}`
+                              : KIND_LABELS[payable.kind]}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {payable.category ? (
+                            <span className="inline-flex items-center gap-1.5 text-sm">
+                              <span className="size-2.5 rounded-full" style={{ backgroundColor: payable.category.color }} />
+                              {payable.category.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="tabular-nums">{formatDate(payable.due_date)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(toNumber(payable.amount))}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {payable.is_paid ? (
+                              <Button variant="ghost" size="icon" title="Estornar baixa" onClick={() => handleUnpay(payable)}>
+                                <RotateCcw className="size-4 text-amber-600" />
+                              </Button>
+                            ) : null}
+                            <Button variant="ghost" size="icon" title="Editar" onClick={() => openEdit(payable)}>
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDelete(payable)}>
+                              <Trash2 className="size-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

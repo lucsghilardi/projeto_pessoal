@@ -67,6 +67,27 @@ export interface CreditCardInvoice {
   payments: CreditCardInvoicePayment[];
 }
 
+/**
+ * Linha de previsão de fatura exibida em Contas a pagar (somente leitura).
+ * Atenção: `is_closed` é o CICLO (já passou do corte) e `status` é o PAGAMENTO —
+ * uma fatura pode estar com status "aberta" (nada pago) e o ciclo já fechado.
+ */
+export interface CreditCardInvoiceForecast {
+  credit_card_id: number;
+  invoice_id: number | null; // null = fatura ainda não persistida
+  card_name: string;
+  last_four: string | null;
+  card_is_active: boolean;
+  reference_month: string;
+  closing_date: string;
+  due_date: string;
+  is_closed: boolean;
+  total: number;
+  paid_total: number;
+  remaining: number;
+  status: CreditCardInvoiceStatus;
+}
+
 export interface ResolvedInvoiceWindow {
   closing_date: string;
   due_date: string;
