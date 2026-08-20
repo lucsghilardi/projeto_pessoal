@@ -23,7 +23,7 @@ import {
   reorderColumns,
 } from "@/services/api";
 import { ApiError } from "@/services/apiError";
-import type { GamificationSummary } from "@/types/Gamification";
+import type { GamificationSummary, MoveTaskResult } from "@/types/Gamification";
 import type { Project, Task, TaskColumn } from "@/types/Task";
 
 export default function ProjectBoardPage() {
@@ -115,6 +115,34 @@ export default function ProjectBoardPage() {
     }
   }, []);
 
+  // Reposiciona o card na coluna que o backend confirmou e sincroniza o XP.
+  // O arrastar já moveu o card localmente; a troca de coluna pelo painel não.
+  const applyMoveResult = useCallback((result: MoveTaskResult) => {
+    if (result.xp_gained > 0) {
+      fireConfetti();
+      appToast.success(`Tarefa concluída! +${result.xp_gained} XP 🎉`);
+    }
+
+    setGamification(result.gamification);
+    setColumns((prev) =>
+      prev.map((column) => {
+        const tasks = column.tasks.filter((task) => task.id !== result.task.id);
+
+        if (column.id !== result.task.task_column_id) {
+          return { ...column, tasks };
+        }
+
+        const current = column.tasks.find((task) => task.id === result.task.id);
+        tasks.splice(Math.min(result.task.position, tasks.length), 0, {
+          ...current,
+          ...result.task,
+        });
+
+        return { ...column, tasks };
+      }),
+    );
+  }, []);
+
   const handleMovePersist = useCallback(
     async (taskId: number, columnId: number, position: number) => {
       try {
@@ -123,20 +151,7 @@ export default function ProjectBoardPage() {
           position,
         });
 
-        if (result.xp_gained > 0) {
-          fireConfetti();
-          appToast.success(`Tarefa concluída! +${result.xp_gained} XP 🎉`);
-        }
-
-        setGamification(result.gamification);
-        setColumns((prev) =>
-          prev.map((column) => ({
-            ...column,
-            tasks: column.tasks.map((task) =>
-              task.id === taskId ? { ...task, ...result.task } : task,
-            ),
-          })),
-        );
+        applyMoveResult(result);
       } catch (error) {
         appToast.error(
           error instanceof ApiError ? error.message : "Não foi possível mover a tarefa.",
@@ -144,7 +159,7 @@ export default function ProjectBoardPage() {
         loadBoard();
       }
     },
-    [loadBoard],
+    [applyMoveResult, loadBoard],
   );
 
   function openCreateTask(columnId: number) {
@@ -321,6 +336,7 @@ export default function ProjectBoardPage() {
         defaultColumnId={defaultColumnId}
         onCreated={handleTaskCreated}
         onUpdated={handleTaskUpdated}
+        onMoved={applyMoveResult}
         onDeleted={handleTaskDeleted}
         onTimeChanged={updateTaskTracked}
       />

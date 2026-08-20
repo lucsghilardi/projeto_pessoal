@@ -58,6 +58,53 @@ export function KanbanBoard({
     columnsRef.current = columns;
   }, [columns]);
 
+  // O drop pode chegar antes de o React recommitar o resultado do último
+  // `dragOver`. Sem atualizar o espelho aqui, a handler seguinte leria a
+  // coluna de origem e persistiria a tarefa de volta nela.
+  function commitColumns(next: BoardColumn[]) {
+    columnsRef.current = next;
+    setColumns(next);
+  }
+
+  // Índice em que a tarefa arrastada entra na coluna de destino: antes do card
+  // sob o cursor, ou no fim quando o alvo é a área vazia da coluna.
+  function insertIndexFor(to: BoardColumn, overId: UniqueIdentifier) {
+    if (isColumnId(overId)) {
+      return to.tasks.length;
+    }
+
+    const index = to.tasks.findIndex((t) => t.id === taskIdOf(overId));
+
+    return index < 0 ? to.tasks.length : index;
+  }
+
+  function moveAcrossColumns(
+    board: BoardColumn[],
+    taskId: number,
+    fromId: number,
+    toId: number,
+    insertIndex: number,
+  ): BoardColumn[] | null {
+    const from = board.find((c) => c.id === fromId);
+    const to = board.find((c) => c.id === toId);
+    const moving = from?.tasks.find((t) => t.id === taskId);
+    if (!from || !to || !moving) {
+      return null;
+    }
+
+    return board.map((c) => {
+      if (c.id === fromId) {
+        return { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) };
+      }
+      if (c.id === toId) {
+        const tasks = [...c.tasks];
+        tasks.splice(insertIndex, 0, { ...moving, task_column_id: toId });
+        return { ...c, tasks };
+      }
+      return c;
+    });
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -95,38 +142,23 @@ export function KanbanBoard({
       return;
     }
 
-    setColumns((prev) => {
-      const from = prev.find((c) => c.id === activeColumn);
-      const to = prev.find((c) => c.id === overColumn);
-      if (!from || !to) {
-        return prev;
-      }
+    const prev = columnsRef.current;
+    const to = prev.find((c) => c.id === overColumn);
+    if (!to) {
+      return;
+    }
 
-      const activeTaskId = taskIdOf(active.id);
-      const moving = from.tasks.find((t) => t.id === activeTaskId);
-      if (!moving) {
-        return prev;
-      }
+    const next = moveAcrossColumns(
+      prev,
+      taskIdOf(active.id),
+      activeColumn,
+      overColumn,
+      insertIndexFor(to, over.id),
+    );
 
-      let insertIndex = isColumnId(over.id)
-        ? to.tasks.length
-        : to.tasks.findIndex((t) => t.id === taskIdOf(over.id));
-      if (insertIndex < 0) {
-        insertIndex = to.tasks.length;
-      }
-
-      return prev.map((c) => {
-        if (c.id === activeColumn) {
-          return { ...c, tasks: c.tasks.filter((t) => t.id !== activeTaskId) };
-        }
-        if (c.id === overColumn) {
-          const next = [...c.tasks];
-          next.splice(insertIndex, 0, { ...moving, task_column_id: overColumn });
-          return { ...c, tasks: next };
-        }
-        return c;
-      });
-    });
+    if (next) {
+      commitColumns(next);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -138,34 +170,60 @@ export function KanbanBoard({
     }
 
     const activeTaskId = taskIdOf(active.id);
-    const columnId = findColumnId(active.id);
-    if (columnId == null) {
+    // A coluna de destino vem do `over` do evento, e nao de onde a tarefa esta
+    // no estado: num drop logo apos entrar na coluna o `dragOver` pode nem ter
+    // rodado, e ler o estado devolveria a tarefa para a coluna de origem.
+    const sourceColumnId = findColumnId(active.id);
+    const columnId = findColumnId(over.id);
+    if (sourceColumnId == null || columnId == null) {
       return;
     }
 
-    const column = columnsRef.current.find((c) => c.id === columnId);
-    if (!column) {
-      return;
-    }
+    let next = columnsRef.current;
+    let target: number;
 
-    const oldIndex = column.tasks.findIndex((t) => t.id === activeTaskId);
-    let target = isColumnId(over.id)
-      ? column.tasks.length - 1
-      : column.tasks.findIndex((t) => t.id === taskIdOf(over.id));
-    if (target < 0) {
-      target = Math.max(0, column.tasks.length - 1);
-    }
+    if (sourceColumnId !== columnId) {
+      const to = next.find((c) => c.id === columnId);
+      if (!to) {
+        return;
+      }
 
-    if (oldIndex !== target) {
-      setColumns((prev) =>
-        prev.map((c) =>
+      target = insertIndexFor(to, over.id);
+      const moved = moveAcrossColumns(
+        next,
+        activeTaskId,
+        sourceColumnId,
+        columnId,
+        target,
+      );
+      if (!moved) {
+        return;
+      }
+      next = moved;
+    } else {
+      const column = next.find((c) => c.id === columnId);
+      if (!column) {
+        return;
+      }
+
+      const oldIndex = column.tasks.findIndex((t) => t.id === activeTaskId);
+      target = isColumnId(over.id)
+        ? column.tasks.length - 1
+        : column.tasks.findIndex((t) => t.id === taskIdOf(over.id));
+      if (target < 0) {
+        target = Math.max(0, column.tasks.length - 1);
+      }
+
+      if (oldIndex >= 0 && oldIndex !== target) {
+        next = next.map((c) =>
           c.id === columnId
             ? { ...c, tasks: arrayMove(c.tasks, oldIndex, target) }
             : c,
-        ),
-      );
+        );
+      }
     }
 
+    commitColumns(next);
     onMovePersist(activeTaskId, columnId, target);
   }
 

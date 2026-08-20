@@ -29,8 +29,9 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { appToast } from "@/lib/toast";
 import { PRIORITY_META, PRIORITY_OPTIONS, toDateInputValue } from "@/lib/tarefas";
-import { createTask, deleteTask, updateTask } from "@/services/api";
+import { createTask, deleteTask, moveTask, updateTask } from "@/services/api";
 import { ApiError } from "@/services/apiError";
+import type { MoveTaskResult } from "@/types/Gamification";
 import type { Task, TaskColumn, TaskPriority } from "@/types/Task";
 
 import { TimeEntriesSection } from "./time-entries-section";
@@ -44,6 +45,7 @@ type TaskSheetProps = {
   defaultColumnId?: number | null;
   onCreated?: (task: Task) => void;
   onUpdated?: (task: Task) => void;
+  onMoved?: (result: MoveTaskResult) => void;
   onDeleted?: (taskId: number) => void;
   onTimeChanged?: (taskId: number, totalSeconds: number) => void;
 };
@@ -57,6 +59,7 @@ export function TaskSheet({
   defaultColumnId,
   onCreated,
   onUpdated,
+  onMoved,
   onDeleted,
   onTimeChanged,
 }: TaskSheetProps) {
@@ -88,14 +91,27 @@ export function TaskSheet({
 
     try {
       if (task) {
+        if (!columnId) {
+          setError("Selecione uma coluna.");
+          setSaving(false);
+          return;
+        }
+
         const updated = await updateTask(task.id, {
           title: title.trim(),
           description: description.trim() || undefined,
           priority,
           due_date: dueDate || null,
         });
-        appToast.success("Tarefa atualizada.");
         onUpdated?.(updated);
+
+        // `update` não mexe na coluna: trocar de coluna é o mesmo endpoint do
+        // arrastar, para que XP e conclusão sigam a mesma regra.
+        if (columnId !== task.task_column_id) {
+          onMoved?.(await moveTask(task.id, { task_column_id: columnId }));
+        }
+
+        appToast.success("Tarefa atualizada.");
       } else {
         if (!columnId) {
           setError("Selecione uma coluna.");
@@ -212,26 +228,24 @@ export function TaskSheet({
               />
             </Field>
 
-            {!task ? (
-              <Field>
-                <FieldLabel htmlFor="task-column">Coluna</FieldLabel>
-                <Select
-                  value={columnId ? String(columnId) : undefined}
-                  onValueChange={(value) => setColumnId(Number(value))}
-                >
-                  <SelectTrigger id="task-column">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {columns.map((column) => (
-                      <SelectItem key={column.id} value={String(column.id)}>
-                        {column.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ) : null}
+            <Field>
+              <FieldLabel htmlFor="task-column">Coluna</FieldLabel>
+              <Select
+                value={columnId ? String(columnId) : undefined}
+                onValueChange={(value) => setColumnId(Number(value))}
+              >
+                <SelectTrigger id="task-column">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {columns.map((column) => (
+                    <SelectItem key={column.id} value={String(column.id)}>
+                      {column.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
             {task ? (
               <TimeEntriesSection
