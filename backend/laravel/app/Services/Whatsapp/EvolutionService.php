@@ -3,6 +3,7 @@
 namespace App\Services\Whatsapp;
 
 use App\Models\WhatsappInstancia;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -14,7 +15,9 @@ use Illuminate\Support\Facades\Log;
 class EvolutionService
 {
     private string $baseUrl;
+
     private string $instanceName;
+
     private string $apiKey;
 
     public function __construct(string $instanceName)
@@ -126,12 +129,25 @@ class EvolutionService
             $phone = preg_replace('/\D+/', '', explode('@', $ownerJid, 2)[0] ?? '') ?? '';
         }
 
+        // `connectionStatus` é um campo de banco que a Evolution só atualiza
+        // quando o Baileys emite connection.update. Se o socket morre sem
+        // emitir — foi o caso em 24/08/2026 —, ele fica preso em 'open' para
+        // sempre: o painel mostra "conectado" enquanto a instância não recebe
+        // webhook nem consegue enviar. Confirmamos com uma sonda antes de
+        // repassar o 'open' adiante.
+        $conectado = $estado === 'open';
+        if ($conectado && $this->socketMorto()) {
+            Log::warning("[whatsapp:evolution] instância {$this->instanceName} marcada como 'open' na Evolution, mas o socket não responde (sessão zumbi); é preciso reparear.");
+            $conectado = false;
+            $estado = 'zumbi';
+        }
+
         return [
             'sucesso' => true,
             'http_code' => $resp['http_code'],
             'response' => [
                 'phone' => $phone,
-                'connected' => $estado === 'open',
+                'connected' => $conectado,
                 'session' => $estado,
             ],
         ];
@@ -240,8 +256,9 @@ class EvolutionService
 
             if ($httpCode < 200 || $httpCode >= 300) {
                 $erroMsg = 'Resposta inválida da Evolution API. HTTP '.$httpCode;
-                if (is_array($decoded) && isset($decoded['message'])) {
-                    $erroMsg .= ' - '.(is_array($decoded['message']) ? json_encode($decoded['message']) : (string) $decoded['message']);
+                $motivo = $this->extrairMensagemErro($decoded);
+                if ($motivo !== '') {
+                    $erroMsg .= ' - '.$motivo;
                 }
 
                 return ['sucesso' => false, 'http_code' => $httpCode, 'erro' => $erroMsg, 'response' => $decoded ?? $resp->body()];
@@ -309,5 +326,98 @@ class EvolutionService
     private function normalizarNumero(string $valor): string
     {
         return preg_replace('/\D+/', '', $valor) ?? '';
+    }
+
+    /**
+     * O motivo real de um erro vem em três formatos diferentes na Evolution v2,
+     * e nenhum deles é o `message` da raiz que a v1 usava:
+     *   - validação:  {"status":400,"response":{"message":["..."]}}
+     *   - Baileys:    {"isBoom":true,"output":{"payload":{"message":"Connection Closed"}}}
+     *   - simples:    {"message":"..."}
+     * Sem varrer os três, o log registra só "HTTP 400" e esconde a causa — foi
+     * o que manteve a sessão morta invisível por quatro dias em 08/2026.
+     */
+    private function extrairMensagemErro(mixed $decoded): string
+    {
+        if (! is_array($decoded)) {
+            return '';
+        }
+
+        $candidatos = [
+            $decoded['message'] ?? null,
+            $decoded['response']['message'] ?? null,
+            $decoded['output']['payload']['message'] ?? null,
+            $decoded['error'] ?? null,
+        ];
+
+        foreach ($candidatos as $candidato) {
+            if (is_string($candidato) && $candidato !== '') {
+                return $candidato;
+            }
+            if (! is_array($candidato) || $candidato === []) {
+                continue;
+            }
+
+            // A Evolution manda a mensagem de validação como lista. Juntar os
+            // itens mantém o log legível; json_encode escaparia os acentos
+            // ("número") e o motivo viraria ruído.
+            $escalares = array_filter($candidato, static fn ($item) => is_scalar($item));
+            if (count($escalares) === count($candidato)) {
+                return implode('; ', array_map(static fn ($item) => (string) $item, $escalares));
+            }
+
+            return (string) json_encode($candidato, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return '';
+    }
+
+    /**
+     * Sonda se o socket do WhatsApp responde de fato.
+     *
+     * A consulta usa um número fora da agenda de propósito: para um contato
+     * conhecido a Evolution responde do cache local e a sonda nunca tocaria o
+     * socket. Com número desconhecido o Baileys precisa perguntar ao servidor,
+     * e é aí que uma sessão zumbi se denuncia com "Connection Closed".
+     *
+     * Só devolve true diante da falha explícita. Timeout, DNS ou 5xx mantêm o
+     * status otimista — um soluço de rede não deve marcar a instância como
+     * desconectada.
+     */
+    public function socketMorto(): bool
+    {
+        $numero = (string) config('whatsapp.evolution.numero_sonda');
+        if ($numero === '') {
+            return false;
+        }
+
+        $ttl = (int) config('whatsapp.evolution.sonda_ttl_segundos');
+        $chave = "wa:sonda:{$this->instanceName}";
+
+        $sondar = function () use ($numero): bool {
+            $resp = $this->http('POST', "/chat/whatsappNumbers/{$this->instanceName}", [
+                'numbers' => [$this->normalizarNumero($numero)],
+            ]);
+
+            if ($resp['sucesso'] ?? false) {
+                return false;
+            }
+
+            // 4xx com "Connection Closed"/428 é o socket caído. Qualquer outra
+            // falha (0 = rede, 5xx = Evolution em apuros) não prova nada.
+            $codigo = (int) ($resp['http_code'] ?? 0);
+            if ($codigo < 400 || $codigo >= 500) {
+                return false;
+            }
+
+            $motivo = strtolower($this->extrairMensagemErro($resp['response'] ?? null));
+            $statusBaileys = (int) ($resp['response']['output']['payload']['statusCode'] ?? 0);
+
+            return str_contains($motivo, 'connection closed') || $statusBaileys === 428;
+        };
+
+        return $ttl > 0
+            ? (bool) Cache::remember($chave, $ttl, $sondar)
+            : $sondar();
     }
 }

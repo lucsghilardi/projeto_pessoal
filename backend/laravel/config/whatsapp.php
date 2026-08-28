@@ -9,6 +9,14 @@ return [
         'base_url' => env('EVOLUTION_BASE_URL', 'http://evolution:8080'),
         // Chave global (AUTHENTICATION_API_KEY do container evolution).
         'api_key' => env('EVOLUTION_API_KEY'),
+        // Número usado para sondar se o socket do WhatsApp está vivo (ver
+        // EvolutionService::socketMorto). Precisa ser um número que NUNCA
+        // esteja na agenda: a Evolution responde do cache local quando conhece
+        // o contato, e aí a sonda não chegaria a tocar o socket.
+        'numero_sonda' => env('EVOLUTION_NUMERO_SONDA', '5500000000000'),
+        // Por quanto tempo o resultado da sonda vale. Evita uma consulta ao
+        // WhatsApp a cada leitura de status sem deixar o dado envelhecer.
+        'sonda_ttl_segundos' => (int) env('EVOLUTION_SONDA_TTL', 60),
     ],
 
     'webhook' => [

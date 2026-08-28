@@ -214,7 +214,16 @@ export default function WhatsappOverviewPage() {
     try {
       const status = await getWhatsappStatus();
       setInstancia(status.instancia);
-      appToast.success(status.connected ? "Sessão conectada." : `Sessão: ${status.session || "desconectada"}.`);
+      if (status.connected) {
+        appToast.success("Sessão conectada.");
+      } else if (status.session === "zumbi") {
+        // A Evolution ainda diz "open", mas o socket não responde: nada entra
+        // nem sai até parear de novo. Sem esta mensagem o painel parecia
+        // conectado enquanto o módulo estava parado.
+        appToast.error("Sessão caiu no WhatsApp e não se recuperou. Leia o QR code de novo para reconectar.");
+      } else {
+        appToast.success(`Sessão: ${status.session || "desconectada"}.`);
+      }
     } catch (error) {
       appToast.error(error instanceof ApiError ? error.message : "Não foi possível consultar o status.");
     }
