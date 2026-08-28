@@ -67,12 +67,35 @@ class EvolutionService
     }
 
     /**
-     * MESSAGES_DELETE alimenta o aviso de mensagem apagada. Assinar um evento
-     * novo só vale depois de rodar isto de novo em cada instância já criada
-     * (POST /api/whatsapp/instancia/webhook) — confira com /webhook/find.
+     * Eventos que a Evolution entrega neste webhook. MESSAGES_DELETE alimenta o
+     * aviso de mensagem apagada e MESSAGES_EDITED o de mensagem editada.
+     *
+     * Quem guarda a assinatura é a Evolution, por instância: acrescentar um
+     * evento aqui não muda nada em quem já foi criado antes. Só passa a valer
+     * depois de reassinar — `php artisan whatsapp:reassinar-webhook`, ou o
+     * POST /api/whatsapp/instancia/webhook. Confira com /webhook/find.
      */
-    public function setWebhook(string $url, array $events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'SEND_MESSAGE']): array
+    public const EVENTOS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'MESSAGES_EDITED', 'SEND_MESSAGE'];
+
+    /**
+     * URL que a Evolution chama, com o token na query string — o
+     * WebhookController confere esse token antes de olhar o payload.
+     */
+    public static function webhookUrlConfigurada(): string
     {
+        $url = (string) config('whatsapp.webhook.url');
+        $token = (string) config('whatsapp.webhook.token');
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'token='.urlencode($token);
+    }
+
+    /**
+     * @param  list<string>|null  $events  null usa a lista padrão (self::EVENTOS)
+     */
+    public function setWebhook(string $url, ?array $events = null): array
+    {
+        $events ??= self::EVENTOS;
+
         return $this->http('POST', "/webhook/set/{$this->instanceName}", [
             'webhook' => [
                 'enabled' => true,

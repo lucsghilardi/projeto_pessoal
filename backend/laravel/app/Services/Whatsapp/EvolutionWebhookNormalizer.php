@@ -211,6 +211,80 @@ class EvolutionWebhookNormalizer
     }
 
     /**
+     * Reconhece "editar mensagem" e devolve o texto novo junto da key da
+     * mensagem original.
+     *
+     * Ao contrário do revoke, aqui o evento não precisa entrar como parâmetro:
+     * o edit se reconhece sozinho pelo formato, porque só ele carrega um
+     * editedMessage. E precisa ser assim — a Evolution dispara MESSAGES_EDITED
+     * para qualquer protocolMessage, revoke inclusive, então olhar só o nome do
+     * evento marcaria exclusão como edição.
+     *
+     * Os dois formatos conhecidos:
+     *
+     *   1. messages.edited — o data JÁ É o protocolMessage (key aponta a
+     *      mensagem original, editedMessage traz o conteúdo novo);
+     *   2. messages.upsert com protocolMessage — o mesmo conteúdo aninhado em
+     *      data.message.protocolMessage ou no embrulho do Baileys, em
+     *      data.message.editedMessage.message.protocolMessage.
+     *
+     * Na v2.3.7 só o primeiro chega: a Evolution corta o upsert assim que vê um
+     * protocolMessage, antes de emitir MESSAGES_UPSERT. O segundo fica de pé
+     * para as versões que entregam o edit por lá.
+     *
+     * @return list<array{messageId: string, remoteJid: string, porMim: bool, texto: string}>
+     */
+    public function normalizarEdicoes(array $data): array
+    {
+        $protocolo = is_array($data['editedMessage'] ?? null)
+            ? $data
+            : $this->protocolMessageDoUpsert($data);
+
+        $editada = is_array($protocolo['editedMessage'] ?? null) ? $protocolo['editedMessage'] : [];
+        if ($editada === []) {
+            return [];
+        }
+
+        // A key interna costuma vir só com o id; o resto completa pela externa
+        // (que existe no caminho do upsert). fromMe é de quem ESCREVEU a
+        // mensagem editada — é esse o "quem" que interessa.
+        $keyExterna = is_array($data['key'] ?? null) ? $data['key'] : [];
+        $key = (is_array($protocolo['key'] ?? null) ? $protocolo['key'] : []) + $keyExterna;
+
+        $messageId = (string) ($key['id'] ?? '');
+        // Texto novo vazio seria um edit sem conteúdo: nada a gravar nem a
+        // mostrar. O resumo é o mesmo das citações — legenda de mídia inclusa.
+        $texto = trim($this->resumoDaMensagem($editada));
+        if ($messageId === '' || $texto === '') {
+            return [];
+        }
+
+        return [[
+            'messageId' => $messageId,
+            'remoteJid' => (string) ($key['remoteJid'] ?? ''),
+            'porMim' => (bool) ($key['fromMe'] ?? false),
+            'texto' => $texto,
+        ]];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function protocolMessageDoUpsert(array $data): array
+    {
+        $message = is_array($data['message'] ?? null) ? $data['message'] : [];
+
+        $direto = is_array($message['protocolMessage'] ?? null) ? $message['protocolMessage'] : [];
+        if ($direto !== []) {
+            return $direto;
+        }
+
+        $embrulhado = $message['editedMessage']['message']['protocolMessage'] ?? null;
+
+        return is_array($embrulhado) ? $embrulhado : [];
+    }
+
+    /**
      * Procura um contextInfo com stanzaId (mensagem citada) em qualquer node do
      * message e devolve { messageId, texto } resumindo a citação.
      */
@@ -229,14 +303,18 @@ class EvolutionWebhookNormalizer
 
             return [
                 'messageId' => $stanzaId,
-                'texto' => $this->resumoMensagemCitada($quoted),
+                'texto' => $this->resumoDaMensagem($quoted),
             ];
         }
 
         return null;
     }
 
-    private function resumoMensagemCitada(array $quoted): string
+    /**
+     * Resume um node de mensagem crua do Baileys em uma linha de texto —
+     * serve tanto para a citação quanto para o conteúdo novo de uma edição.
+     */
+    private function resumoDaMensagem(array $quoted): string
     {
         if (isset($quoted['conversation'])) {
             return (string) $quoted['conversation'];

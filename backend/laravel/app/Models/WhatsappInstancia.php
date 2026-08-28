@@ -23,6 +23,7 @@ class WhatsappInstancia extends Model
         'calorias_texto_ia',
         'financeiro_ativo',
         'aviso_apagadas_ativo',
+        'aviso_edicoes_ativo',
         'relatorio_diario_ativo',
         'resumo_matinal_ativo',
     ];
@@ -33,6 +34,7 @@ class WhatsappInstancia extends Model
         'calorias_texto_ia' => 'boolean',
         'financeiro_ativo' => 'boolean',
         'aviso_apagadas_ativo' => 'boolean',
+        'aviso_edicoes_ativo' => 'boolean',
         'relatorio_diario_ativo' => 'boolean',
         'resumo_matinal_ativo' => 'boolean',
     ];

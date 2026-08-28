@@ -42,9 +42,19 @@ class WebhookController extends Controller
             // Evolution. Checar antes do fluxo normal: o normalizarUpsert
             // descarta protocolMessage, então o revoke se perderia ali.
             $revokes = $normalizer->normalizarRevokes($data, $event);
+            // "Editar mensagem" chega como messages.edited (a Evolution emite
+            // esse evento para qualquer protocolMessage, então quem separa
+            // edição de exclusão é o formato, não o nome do evento) e, em
+            // versões que não cortam o upsert, também por lá.
+            $edicoes = $normalizer->normalizarEdicoes($data);
+
             if ($revokes !== []) {
                 foreach ($revokes as $revoke) {
                     $ingest->marcarApagada($revoke, $instancia);
+                }
+            } elseif ($edicoes !== []) {
+                foreach ($edicoes as $edicao) {
+                    $ingest->marcarEditada($edicao, $instancia);
                 }
             } elseif (in_array($event, ['messages.upsert', 'send.message'], true)) {
                 $norm = $normalizer->normalizarUpsert($data, $instanceName);

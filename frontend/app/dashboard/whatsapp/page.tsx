@@ -236,6 +236,7 @@ export default function WhatsappOverviewPage() {
       | "calorias_texto_ia"
       | "financeiro_ativo"
       | "aviso_apagadas_ativo"
+      | "aviso_edicoes_ativo"
       | "relatorio_diario_ativo"
       | "resumo_matinal_ativo",
     valor: boolean,
@@ -440,6 +441,12 @@ export default function WhatsappOverviewPage() {
                   description="Quando um contato apagar uma mensagem que mandou, você recebe no seu próprio número o nome dele e o texto que sumiu. Grupos e o que você mesmo apagar ficam de fora."
                   checked={instancia.aviso_apagadas_ativo}
                   onChange={(v) => handleToggle("aviso_apagadas_ativo", v)}
+                />
+                <ToggleRow
+                  label="Avisar mensagens editadas"
+                  description="Quando um contato editar uma mensagem que mandou, você recebe no seu próprio número as duas versões: como estava antes e como ficou. Grupos e o que você mesmo editar ficam de fora."
+                  checked={instancia.aviso_edicoes_ativo}
+                  onChange={(v) => handleToggle("aviso_edicoes_ativo", v)}
                 />
               </CardContent>
             </Card>

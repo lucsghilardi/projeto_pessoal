@@ -49,7 +49,7 @@ class InstanciaController extends Controller
             return response()->json(['message' => 'Falha ao criar a instância na Evolution: '.($resp['erro'] ?? 'erro desconhecido')], 422);
         }
 
-        $webhook = $svc->setWebhook($this->webhookUrl());
+        $webhook = $svc->setWebhook(EvolutionService::webhookUrlConfigurada());
         if (! ($webhook['sucesso'] ?? false)) {
             Log::warning('[whatsapp:instancia] webhook não configurado na criação: '.($webhook['erro'] ?? ''));
         }
@@ -81,6 +81,7 @@ class InstanciaController extends Controller
             'calorias_texto_ia' => ['sometimes', 'boolean'],
             'financeiro_ativo' => ['sometimes', 'boolean'],
             'aviso_apagadas_ativo' => ['sometimes', 'boolean'],
+            'aviso_edicoes_ativo' => ['sometimes', 'boolean'],
             'relatorio_diario_ativo' => ['sometimes', 'boolean'],
             'resumo_matinal_ativo' => ['sometimes', 'boolean'],
         ]);
@@ -219,7 +220,7 @@ class InstanciaController extends Controller
         $instancia = $this->instanciaDoUsuario($request);
         abort_if($instancia === null, 404, 'Nenhuma instância configurada.');
 
-        $resp = EvolutionService::forInstancia($instancia)->setWebhook($this->webhookUrl());
+        $resp = EvolutionService::forInstancia($instancia)->setWebhook(EvolutionService::webhookUrlConfigurada());
         if (! ($resp['sucesso'] ?? false)) {
             return response()->json(['message' => 'Falha ao configurar o webhook: '.($resp['erro'] ?? 'erro desconhecido')], 422);
         }
@@ -230,13 +231,5 @@ class InstanciaController extends Controller
     private function instanciaDoUsuario(Request $request): ?WhatsappInstancia
     {
         return WhatsappInstancia::where('user_id', $request->user()->id)->first();
-    }
-
-    private function webhookUrl(): string
-    {
-        $url = (string) config('whatsapp.webhook.url');
-        $token = (string) config('whatsapp.webhook.token');
-
-        return $url.(str_contains($url, '?') ? '&' : '?').'token='.urlencode($token);
     }
 }

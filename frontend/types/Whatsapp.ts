@@ -14,6 +14,7 @@ export interface WhatsappInstancia {
   calorias_texto_ia: boolean;
   financeiro_ativo: boolean;
   aviso_apagadas_ativo: boolean;
+  aviso_edicoes_ativo: boolean;
   relatorio_diario_ativo: boolean;
   resumo_matinal_ativo: boolean;
   created_at?: string;
@@ -27,6 +28,7 @@ export interface WhatsappInstanciaPayload {
   calorias_texto_ia?: boolean;
   financeiro_ativo?: boolean;
   aviso_apagadas_ativo?: boolean;
+  aviso_edicoes_ativo?: boolean;
   relatorio_diario_ativo?: boolean;
   resumo_matinal_ativo?: boolean;
 }

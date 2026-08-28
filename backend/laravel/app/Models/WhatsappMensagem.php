@@ -18,6 +18,7 @@ class WhatsappMensagem extends Model
         'sender_name',
         'tipo',
         'texto',
+        'texto_original',
         'caption',
         'media_url',
         'media_mime',
@@ -28,6 +29,7 @@ class WhatsappMensagem extends Model
         'quoted_texto',
         'origem',
         'apagada_em',
+        'editada_em',
         'raw_payload',
     ];
 
@@ -35,6 +37,7 @@ class WhatsappMensagem extends Model
         'from_me' => 'boolean',
         'momment' => 'integer',
         'apagada_em' => 'datetime',
+        'editada_em' => 'datetime',
         'raw_payload' => 'array',
     ];
 

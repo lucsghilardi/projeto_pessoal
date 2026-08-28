@@ -4,6 +4,7 @@ namespace App\Services\Whatsapp;
 
 use App\Jobs\AnalisarAnexoWhatsapp;
 use App\Jobs\AvisarMensagemApagada;
+use App\Jobs\AvisarMensagemEditada;
 use App\Jobs\ProcessarMensagemPessoal;
 use App\Models\WhatsappChat;
 use App\Models\WhatsappConversa;
@@ -170,6 +171,73 @@ class WhatsappIngestService
         // Na fila porque o webhook precisa responder rápido: com a sessão caída,
         // o sendText só volta depois do timeout de 60s.
         dispatch(new AvisarMensagemApagada($mensagem->id));
+    }
+
+    /**
+     * "Editar mensagem": guarda a versão anterior, passa o texto atual a ser o
+     * que o celular mostra e, quando foi o contato que editou, agenda o aviso
+     * no seu próprio número.
+     *
+     * O dedupe aqui é o próprio texto — não uma marca de tempo. O mesmo edit
+     * pode chegar em dois formatos, mas uma segunda edição de verdade tem que
+     * avisar de novo, e o que a distingue da repetição é justamente o conteúdo
+     * ser outro. `texto_original` é escrito uma vez só: mesmo depois de três
+     * edições, ele guarda o que a pessoa escreveu primeiro.
+     *
+     * Mensagem que não está no banco é ignorada em silêncio: sem a versão
+     * anterior o aviso não teria o "antes" para mostrar.
+     *
+     * @param  array{messageId: string, remoteJid: string, porMim: bool, texto: string}  $edicao
+     */
+    public function marcarEditada(array $edicao, WhatsappInstancia $instancia): void
+    {
+        $messageId = (string) ($edicao['messageId'] ?? '');
+        $novoTexto = trim((string) ($edicao['texto'] ?? ''));
+        if ($messageId === '' || $novoTexto === '') {
+            return;
+        }
+
+        $mensagem = WhatsappMensagem::with('chat')
+            ->where('instancia_id', $instancia->id)
+            ->where('message_id', $messageId)
+            ->first();
+
+        if ($mensagem === null) {
+            return;
+        }
+
+        $anterior = (string) $mensagem->texto;
+        if ($novoTexto === $anterior) {
+            return;
+        }
+
+        $mensagem->update([
+            'texto' => $novoTexto,
+            'texto_original' => $mensagem->texto_original ?? $anterior,
+            'editada_em' => now(),
+        ]);
+
+        // O resumo do chat é desnormalizado: sem isto a lista de conversas
+        // seguiria exibindo um texto que já mudou no celular.
+        $chat = $mensagem->chat;
+        if ($chat !== null && $chat->last_message_id === $mensagem->message_id) {
+            $chat->update(['last_message_text' => $novoTexto]);
+        }
+
+        // Editar coisa sua não é notícia — inclusive no chat consigo mesmo.
+        if (! $instancia->aviso_edicoes_ativo || $mensagem->from_me) {
+            return;
+        }
+
+        if ($chat === null || $chat->is_group) {
+            return;
+        }
+
+        // Na fila pelo mesmo motivo do aviso de apagadas: o webhook precisa
+        // responder rápido. O texto anterior vai junto porque a coluna já foi
+        // sobrescrita — e numa segunda edição o "antes" é a versão que acabou
+        // de sair, não a original.
+        dispatch(new AvisarMensagemEditada($mensagem->id, $anterior));
     }
 
     /**
