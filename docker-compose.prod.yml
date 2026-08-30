@@ -115,7 +115,11 @@ services:
       CACHE_REDIS_ENABLED: "false"
       CACHE_LOCAL_ENABLED: "true"
       DEL_INSTANCE: "false"
-      LOG_LEVEL: ERROR,WARN
+      # WEBHOOKS entra por causa do connection.update: sem ele a queda da sessão
+      # não deixa rastro nenhum no log, e os diagnósticos de 24/08 e 28/08 de
+      # 2026 tiveram de ser feitos às cegas. INFO ficaria verboso demais (loga
+      # cada mensagem); WEBHOOKS traz só os eventos emitidos.
+      LOG_LEVEL: ERROR,WARN,WEBHOOKS
     volumes:
       - sistemaraiz_prod_evolution:/evolution/instances
     # `wa_shared` é uma rede externa compartilhada com o compose do beef_loja

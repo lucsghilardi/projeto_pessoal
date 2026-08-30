@@ -17,6 +17,10 @@ return [
         // Por quanto tempo o resultado da sonda vale. Evita uma consulta ao
         // WhatsApp a cada leitura de status sem deixar o dado envelhecer.
         'sonda_ttl_segundos' => (int) env('EVOLUTION_SONDA_TTL', 60),
+        // Folga entre o restart da instância e a sonda de confirmação
+        // (VerificarSessaoWhatsapp). O socket novo leva alguns segundos para
+        // completar o handshake; sondar antes disso dá falso negativo.
+        'espera_restart_segundos' => (int) env('EVOLUTION_ESPERA_RESTART', 20),
     ],
 
     'webhook' => [

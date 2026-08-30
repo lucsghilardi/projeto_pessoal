@@ -91,19 +91,52 @@ class InstanciaController extends Controller
         return response()->json(['instancia' => $instancia]);
     }
 
+    /**
+     * Remove a instância aqui E na Evolution.
+     *
+     * Antes isto era "melhor esforço": as duas chamadas à Evolution eram
+     * tentadas e a linha local saía de qualquer jeito. Numa sessão zumbi as
+     * duas falham — o logout precisa do socket que já caiu e o delete é
+     * recusado enquanto connectionStatus for 'open' —, então o Laravel
+     * esquecia a instância e a Evolution ficava com ela para sempre. Foi assim
+     * que raiz-u1-bqrfz8 sobrou em 28/08/2026; com duas instâncias pareadas no
+     * mesmo número brigando pelo slot de dispositivo vinculado, a sessão nova
+     * durou cinco horas.
+     *
+     * Agora o restart vem primeiro (revive o socket e destrava o logout), e se
+     * ainda assim a instância continuar de pé na Evolution a remoção local é
+     * recusada em vez de gerar a órfã. `?forcar=true` para apagar mesmo assim,
+     * ciente de que sobra lixo do outro lado.
+     */
     public function destroy(Request $request): JsonResponse
     {
         $instancia = $this->instanciaDoUsuario($request);
         abort_if($instancia === null, 404, 'Nenhuma instância configurada.');
 
-        // Melhor esforço na Evolution; a linha (e chats/mensagens, em cascata)
-        // sai do banco de qualquer forma.
+        $forcar = $request->boolean('forcar');
         $svc = EvolutionService::forInstancia($instancia);
+        $nome = $instancia->instance_name;
+
         try {
+            // Um socket morto não faz logout. O restart o reergue com a
+            // credencial que já está pareada, e aí a saída é limpa.
+            if ($svc->socketMorto()) {
+                $svc->restartInstance();
+                sleep((int) config('whatsapp.evolution.espera_restart_segundos'));
+            }
             $svc->logout();
             $svc->deleteInstance();
         } catch (\Throwable $e) {
             Log::warning('[whatsapp:instancia] falha ao remover na Evolution: '.$e->getMessage());
+        }
+
+        if (! $forcar && $svc->existeNaEvolution()) {
+            return response()->json([
+                'message' => "A instância '{$nome}' não pôde ser removida da Evolution e continua lá. "
+                    .'Apagá-la só daqui deixaria uma sessão órfã pareada no mesmo número, que briga pelo '
+                    .'slot de dispositivo vinculado e derruba a sessão nova. Remova-a na Evolution antes, '
+                    .'ou repita com forcar=true.',
+            ], 409);
         }
 
         $instancia->delete();

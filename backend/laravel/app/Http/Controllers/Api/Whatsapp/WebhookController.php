@@ -65,8 +65,24 @@ class WebhookController extends Controller
                 $messageId = (string) ($data['keyId'] ?? $data['messageId'] ?? ($data['key']['id'] ?? ''));
                 $status = $normalizer->normalizarStatus((string) ($data['status'] ?? ''));
                 $ingest->atualizarStatus($instancia, $messageId, $status);
+            } elseif ($event === 'connection.update') {
+                // Quando o Baileys EMITE a queda, o painel fica sabendo na hora
+                // em vez de esperar alguém abrir a tela. Não cobre a sessão
+                // zumbi, que é exatamente o caso em que este evento não vem —
+                // quem cuida disso é o job VerificarSessaoWhatsapp.
+                $estado = strtolower((string) ($data['state'] ?? $data['connection'] ?? ''));
+                $novo = match ($estado) {
+                    'open' => 'conectado',
+                    'connecting' => 'conectando',
+                    'close' => 'desconectado',
+                    default => null,
+                };
+                if ($novo !== null && $novo !== $instancia->status) {
+                    Log::warning("[whatsapp:webhook] instância {$instanceName} mudou para '{$estado}'.");
+                    $instancia->update(['status' => $novo]);
+                }
             }
-            // Demais eventos (qrcode.updated, connection.update...) são ignorados.
+            // Demais eventos (qrcode.updated...) são ignorados.
         } catch (\Throwable $e) {
             // Nunca devolver erro à Evolution: logar e seguir.
             Log::error('[whatsapp:webhook] '.$e->getMessage(), ['exception' => $e]);

@@ -70,12 +70,17 @@ class EvolutionService
      * Eventos que a Evolution entrega neste webhook. MESSAGES_DELETE alimenta o
      * aviso de mensagem apagada e MESSAGES_EDITED o de mensagem editada.
      *
+     * CONNECTION_UPDATE existe para o painel saber da queda na hora em que ela
+     * acontece, em vez de descobrir na próxima vez que alguém abrir a tela. Ele
+     * não substitui a sonda de VerificarSessaoWhatsapp: a sessão zumbi é
+     * justamente o caso em que o socket morre SEM emitir este evento.
+     *
      * Quem guarda a assinatura é a Evolution, por instância: acrescentar um
      * evento aqui não muda nada em quem já foi criado antes. Só passa a valer
      * depois de reassinar — `php artisan whatsapp:reassinar-webhook`, ou o
      * POST /api/whatsapp/instancia/webhook. Confira com /webhook/find.
      */
-    public const EVENTOS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'MESSAGES_EDITED', 'SEND_MESSAGE'];
+    public const EVENTOS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'MESSAGES_EDITED', 'SEND_MESSAGE', 'CONNECTION_UPDATE'];
 
     /**
      * URL que a Evolution chama, com o token na query string — o
@@ -121,6 +126,54 @@ class EvolutionService
     public function deleteInstance(): array
     {
         return $this->http('DELETE', "/instance/delete/{$this->instanceName}");
+    }
+
+    /**
+     * Derruba e reabre o socket da instância reaproveitando a credencial já
+     * pareada — não pede QR de novo.
+     *
+     * É a saída para a sessão zumbi: o Baileys perde a conexão sem emitir
+     * connection.update, e a Evolution não tenta reconectar por conta própria
+     * (o socket fica morto até alguém mexer). Reiniciar o container inteiro
+     * resolveria, mas ele é COMPARTILHADO com o beef_loja — esta rota mexe só
+     * na instância indicada.
+     *
+     * Cuidado com o método: `/instance/restart` só existe em POST. Um PUT
+     * devolve 404 "Cannot PUT", que é indistinguível de instância inexistente
+     * se olhar só o código HTTP.
+     */
+    public function restartInstance(): array
+    {
+        return $this->http('POST', "/instance/restart/{$this->instanceName}");
+    }
+
+    /**
+     * A instância ainda está cadastrada na Evolution?
+     *
+     * Serve para conferir se um delete pegou de fato. Só devolve true diante de
+     * uma resposta boa que traga a instância: se a Evolution estiver fora do ar
+     * a resposta é `false` — não dá para provar que ela existe, e travar a
+     * remoção local por causa de um 5xx seria pior do que deixá-la seguir.
+     */
+    public function existeNaEvolution(): bool
+    {
+        $resp = $this->http('GET', '/instance/fetchInstances', null, ['instanceName' => $this->instanceName]);
+        if (! ($resp['sucesso'] ?? false)) {
+            return false;
+        }
+
+        $bruto = $resp['response'];
+        if (! is_array($bruto)) {
+            return false;
+        }
+
+        // A v2 devolve uma lista; vazia quer dizer "não existe". Um objeto solto
+        // só aparece quando ela achou algo.
+        if (isset($bruto[0]) && is_array($bruto[0])) {
+            return true;
+        }
+
+        return isset($bruto['name']) || isset($bruto['instance']);
     }
 
     /**
@@ -407,15 +460,21 @@ class EvolutionService
      * status otimista — um soluço de rede não deve marcar a instância como
      * desconectada.
      */
-    public function socketMorto(): bool
+    public function socketMorto(bool $ignorarCache = false): bool
     {
         $numero = (string) config('whatsapp.evolution.numero_sonda');
         if ($numero === '') {
             return false;
         }
 
-        $ttl = (int) config('whatsapp.evolution.sonda_ttl_segundos');
+        $ttl = $ignorarCache ? 0 : (int) config('whatsapp.evolution.sonda_ttl_segundos');
         $chave = "wa:sonda:{$this->instanceName}";
+        if ($ignorarCache) {
+            // Depois de um restart o resultado anterior está garantidamente
+            // errado; limpar evita que a próxima leitura do painel, dentro do
+            // TTL, ressuscite o veredito velho.
+            Cache::forget($chave);
+        }
 
         $sondar = function () use ($numero): bool {
             $resp = $this->http('POST', "/chat/whatsappNumbers/{$this->instanceName}", [
