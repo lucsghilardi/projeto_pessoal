@@ -9,12 +9,12 @@ use App\Models\FinanceCategory;
 use App\Models\Payable;
 use App\Services\Finance\ReceiptEntryService;
 use App\Services\ReceiptAI\ReceiptParser;
+use App\Support\ArquivoPrivado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -29,7 +29,15 @@ class AiReceiptController extends Controller
     public function parse(Request $request, ReceiptParser $parser): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'extensions:jpg,jpeg,png,webp,gif,pdf,csv,txt,ofx,qfx', 'max:20480'],
+            // `extensions` confere só a extensão que o usuário escolheu;
+            // `mimetypes` olha o conteúdo (finfo). Sem os dois, um .jpg com
+            // HTML dentro entra e volta na resposta como text/html.
+            // OFX 1.x é SGML (text/plain) e 2.x é XML — daí os dois de texto.
+            'file' => [
+                'required', 'file', 'max:20480',
+                'extensions:jpg,jpeg,png,webp,gif,pdf,csv,txt,ofx,qfx',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/csv,text/xml,application/xml',
+            ],
         ]);
 
         $userId = $request->user()->id;
@@ -418,15 +426,27 @@ class AiReceiptController extends Controller
 
         abort_if(empty($entry->receipt_path) || ! Storage::disk(self::DISK)->exists($entry->receipt_path), 404);
 
-        return Storage::disk(self::DISK)->response($entry->receipt_path);
+        return ArquivoPrivado::resposta(self::DISK, $entry->receipt_path);
     }
 
     /**
      * Confirma que o arquivo pertence ao usuário e existe; devolve o path validado ou null.
+     *
+     * Regex, e não `Str::startsWith`: "receipts/{$userId}/../7/arquivo" começa
+     * com o prefixo certo e ainda assim aponta para a pasta de outra conta — o
+     * Flysystem normaliza o ".." só depois, e ele só recusa o caminho quando
+     * este sai da raiz do disco, o que não é o caso. Como o path cru era
+     * gravado em `receipt_path` e depois servido pelo download() (que confere a
+     * posse do LANÇAMENTO, não a do arquivo), dava para ler o comprovante de
+     * outro usuário. O formato aceito é o que o `store()` gera: hash + extensão.
      */
     private function assertReceiptOwnership(int $userId, string $receiptPath): ?string
     {
-        if (! Str::startsWith($receiptPath, "receipts/{$userId}/") || ! Storage::disk(self::DISK)->exists($receiptPath)) {
+        if (preg_match('#^receipts/'.$userId.'/[A-Za-z0-9]+\\.[A-Za-z0-9]+$#', $receiptPath) !== 1) {
+            return null;
+        }
+
+        if (! Storage::disk(self::DISK)->exists($receiptPath)) {
             return null;
         }
 

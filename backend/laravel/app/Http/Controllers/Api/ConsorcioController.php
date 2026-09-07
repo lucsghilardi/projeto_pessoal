@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Consorcio;
 use App\Models\Payable;
+use App\Support\ArquivoPrivado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,7 +91,14 @@ class ConsorcioController extends Controller
         $this->authorizeOwnership($request, $consorcio);
 
         $request->validate([
-            'file' => ['required', 'file', 'extensions:pdf,jpg,jpeg,png,webp', 'max:20480'],
+            // `extensions` valida a extensão escolhida pelo usuário; `mimetypes`
+            // olha o conteúdo. Só com as duas um "proposta.pdf" com HTML dentro
+            // é recusado no upload em vez de ser servido depois.
+            'file' => [
+                'required', 'file', 'max:20480',
+                'extensions:pdf,jpg,jpeg,png,webp',
+                'mimetypes:application/pdf,image/jpeg,image/png,image/webp',
+            ],
         ]);
 
         if ($consorcio->proposta_path) {
@@ -113,7 +121,7 @@ class ConsorcioController extends Controller
             404,
         );
 
-        return Storage::disk(self::DISK)->response($consorcio->proposta_path);
+        return ArquivoPrivado::resposta(self::DISK, $consorcio->proposta_path);
     }
 
     public function deleteProposta(Request $request, Consorcio $consorcio): JsonResponse

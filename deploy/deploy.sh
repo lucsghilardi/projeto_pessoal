@@ -53,6 +53,14 @@ fi
 echo "==> Construindo imagens"
 $COMPOSE build
 
+# A configuração do nginx do container `backend` vai dentro da imagem. Se ela
+# tiver erro de sintaxe, o container sobe em crash-loop e o site inteiro cai —
+# e o `up -d` abaixo já teria derrubado o que estava servindo. Testar aqui, com
+# a imagem recém-construída e os containers antigos ainda de pé, transforma um
+# apagão em um deploy abortado (o `set -e` no topo cuida disso).
+echo "==> Validando a configuração do nginx do backend"
+docker run --rm --entrypoint nginx sistemaraiz/backend-web:latest -t
+
 echo "==> Subindo containers"
 $COMPOSE up -d --remove-orphans
 

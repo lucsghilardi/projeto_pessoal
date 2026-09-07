@@ -53,8 +53,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/health', [HealthController::class, 'index']);
 
 // Webhook da Evolution API (módulo WhatsApp). Público de propósito — a
-// Evolution não sabe autenticar em JWT; a proteção é o token na query string,
-// conferido no controller.
+// Evolution não sabe autenticar em JWT; a proteção é o token conferido no
+// controller (header `X-Webhook-Token`, com a query string aceita por
+// compatibilidade). A Evolution chega por dentro do compose: o proxy do Next
+// recusa este caminho, então a rota não é alcançável da internet.
 Route::post('/whatsapp/webhook/evolution', [WhatsappWebhookController::class, 'evolution']);
 
 Route::middleware(['auth:api', 'panel.active'])->group(function () {
@@ -115,7 +117,9 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/reports', [FinanceReportController::class, 'index']);
 
         // Lançamento de despesas via IA (foto de comprovante -> extração -> confirmação)
-        Route::post('/ai-receipt/parse', [AiReceiptController::class, 'parse']);
+        // `throttle:ia` só no parse: é ele que chama a Anthropic; confirmar e
+        // checar duplicados é banco, e travar isso atrapalharia o lançamento.
+        Route::post('/ai-receipt/parse', [AiReceiptController::class, 'parse'])->middleware('throttle:ia');
         Route::post('/ai-receipt/check-duplicates', [AiReceiptController::class, 'checkDuplicates']);
         Route::post('/ai-receipt/confirm', [AiReceiptController::class, 'confirm']);
         Route::post('/ai-receipt/confirm-batch', [AiReceiptController::class, 'confirmBatch']);
@@ -170,14 +174,14 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/chats/{chat}/mensagens', [WhatsappChatController::class, 'mensagens']);
         Route::post('/chats/{chat}/monitorar', [WhatsappChatController::class, 'monitorar']);
         Route::post('/chats/{chat}/arquivar', [WhatsappChatController::class, 'arquivar']);
-        Route::post('/chats/{chat}/analisar', [AnaliseController::class, 'analisarChat']);
+        Route::post('/chats/{chat}/analisar', [AnaliseController::class, 'analisarChat'])->middleware('throttle:ia');
 
         Route::get('/sugestoes', [AnaliseController::class, 'sugestoes']);
         Route::post('/sugestoes/{sugestao}/aceitar', [AnaliseController::class, 'aceitar']);
         Route::post('/sugestoes/{sugestao}/descartar', [AnaliseController::class, 'descartar']);
 
         Route::get('/relatorios', [WhatsappRelatorioController::class, 'index']);
-        Route::post('/relatorios/gerar', [WhatsappRelatorioController::class, 'gerar']);
+        Route::post('/relatorios/gerar', [WhatsappRelatorioController::class, 'gerar'])->middleware('throttle:ia');
         Route::get('/relatorios/{relatorio}', [WhatsappRelatorioController::class, 'show']);
     });
 
@@ -213,7 +217,7 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::delete('/cardio/{cardio}', [CardioSessaoController::class, 'destroy']);
         // Splits e zonas de FC: buscados no Garmin sob demanda, ao abrir a corrida.
         Route::post('/cardio/{cardio}/detalhe', [CardioSessaoController::class, 'detalhe']);
-        Route::post('/cardio/{cardio}/analise', [CardioAnaliseController::class, 'gerar']);
+        Route::post('/cardio/{cardio}/analise', [CardioAnaliseController::class, 'gerar'])->middleware('throttle:ia');
 
         // Garmin Connect (via sidecar Python; ver config/garmin.php).
         Route::get('/garmin/status', [GarminController::class, 'status']);
@@ -236,7 +240,7 @@ Route::middleware(['auth:api', 'panel.active'])->group(function () {
         Route::get('/nutricao/projecao', [NutricaoController::class, 'projecao']);
         Route::get('/refeicoes/{refeicao}/foto', [RefeicaoController::class, 'foto']);
         // Estimativa da IA para preencher o formulário do painel (não grava nada).
-        Route::post('/refeicoes/analisar', [RefeicaoController::class, 'analisar']);
+        Route::post('/refeicoes/analisar', [RefeicaoController::class, 'analisar'])->middleware('throttle:ia');
         Route::apiResource('refeicoes', RefeicaoController::class)
             ->parameters(['refeicoes' => 'refeicao'])
             ->except(['show', 'create', 'edit']);

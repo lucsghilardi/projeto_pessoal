@@ -10,8 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Recebe os eventos da Evolution API. Rota pública (fora do auth:api), mas
- * protegida por token na query string — a URL é alcançável pelo proxy do Next.
+ * Recebe os eventos da Evolution API. Rota fora do auth:api (a Evolution não
+ * sabe autenticar em JWT), protegida por token compartilhado.
  * Sempre responde 200 depois de autenticado, para a Evolution não reenfileirar.
  */
 class WebhookController extends Controller
@@ -21,8 +21,7 @@ class WebhookController extends Controller
         EvolutionWebhookNormalizer $normalizer,
         WhatsappIngestService $ingest,
     ): JsonResponse {
-        $tokenEsperado = (string) config('whatsapp.webhook.token');
-        if ($tokenEsperado === '' || ! hash_equals($tokenEsperado, (string) $request->query('token'))) {
+        if (! $this->tokenConfere($request)) {
             return response()->json(['message' => 'Token inválido.'], 403);
         }
 
@@ -89,5 +88,31 @@ class WebhookController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * O token vem no header `X-Webhook-Token` (assinado por
+     * EvolutionService::setWebhook). A query string continua aceita porque é
+     * assim que as instâncias assinadas antes desta mudança chamam — enquanto
+     * elas não passarem pelo `whatsapp:reassinar-webhook`, recusar a query
+     * derrubaria a entrada de mensagens em silêncio. Segredo em query string
+     * vai parar no log de acesso, então o nginx do container redige o valor
+     * (ver backend/nginx/laravel.conf).
+     */
+    private function tokenConfere(Request $request): bool
+    {
+        $esperado = (string) config('whatsapp.webhook.token');
+
+        if ($esperado === '') {
+            return false;
+        }
+
+        foreach ([(string) $request->header('X-Webhook-Token'), (string) $request->query('token')] as $recebido) {
+            if ($recebido !== '' && hash_equals($esperado, $recebido)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

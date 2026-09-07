@@ -10,7 +10,10 @@ services:
     ports:
       # Exposto na 5433 no host para não conflitar com outros Postgres na 5432.
       # O backend acessa pela rede interna do compose em postgres:5432.
-      - "5433:5432"
+      # Só no loopback: sem o 127.0.0.1 o Docker abre a porta em todas as
+      # interfaces (e fura o ufw), publicando o banco com a senha do .env para
+      # a rede em que a máquina de desenvolvimento estiver.
+      - "127.0.0.1:5433:5432"
     volumes:
       - projeto_pessoal_pgdata:/var/lib/postgresql/data
       # Cria o banco `evolution` (Evolution API) — só roda em volume recém-criado.
@@ -41,7 +44,9 @@ services:
       - ./backend:/var/www
     ports:
       # 8001 no host (8000 já é usado por outro projeto). Interno continua 8000.
-      - "8001:8000"
+      # Loopback pelo mesmo motivo do postgres — e aqui o APP_DEBUG=true de
+      # desenvolvimento entrega stack trace com credenciais a quem chamar.
+      - "127.0.0.1:8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
