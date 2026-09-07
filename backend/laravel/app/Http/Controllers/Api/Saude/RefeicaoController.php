@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Saude;
 use App\Http\Controllers\Controller;
 use App\Models\SaudeRefeicao;
 use App\Services\Saude\SaudeNutricaoAI;
+use App\Support\ArquivoPrivado;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -146,7 +147,7 @@ class RefeicaoController extends Controller
             404,
         );
 
-        return Storage::disk(self::DISK)->response($path);
+        return ArquivoPrivado::resposta(self::DISK, $path);
     }
 
     /**
