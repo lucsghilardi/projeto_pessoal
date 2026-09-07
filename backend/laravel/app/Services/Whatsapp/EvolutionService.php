@@ -83,8 +83,12 @@ class EvolutionService
     public const EVENTOS = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'MESSAGES_DELETE', 'MESSAGES_EDITED', 'SEND_MESSAGE', 'CONNECTION_UPDATE'];
 
     /**
-     * URL que a Evolution chama, com o token na query string — o
-     * WebhookController confere esse token antes de olhar o payload.
+     * URL que a Evolution chama. O token vai também na query string por
+     * compatibilidade com as instâncias já assinadas; o caminho de verdade é o
+     * header `X-Webhook-Token` (ver setWebhook). Depois de reassinar todas as
+     * instâncias e conferir no /webhook/find que o header está lá, dá para
+     * devolver esta função a um simples `return $url;` — aí o segredo some das
+     * URLs de vez.
      */
     public static function webhookUrlConfigurada(): string
     {
@@ -92,6 +96,17 @@ class EvolutionService
         $token = (string) config('whatsapp.webhook.token');
 
         return $url.(str_contains($url, '?') ? '&' : '?').'token='.urlencode($token);
+    }
+
+    /**
+     * Header de autenticação do webhook. Segredo em header não é registrado
+     * pelo log de acesso do nginx, ao contrário da query string.
+     *
+     * @return array<string, string>
+     */
+    private static function webhookHeaders(): array
+    {
+        return ['X-Webhook-Token' => (string) config('whatsapp.webhook.token')];
     }
 
     /**
@@ -105,6 +120,9 @@ class EvolutionService
             'webhook' => [
                 'enabled' => true,
                 'url' => $url,
+                // Conferido pelo WebhookController. A Evolution repassa estes
+                // headers em toda entrega.
+                'headers' => self::webhookHeaders(),
                 // Evolution v2 espera 'byEvents'/'base64' — os nomes da v1
                 // ('webhookByEvents'/'webhookBase64') são IGNORADOS em silêncio.
                 'byEvents' => false,
