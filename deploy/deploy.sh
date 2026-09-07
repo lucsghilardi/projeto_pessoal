@@ -38,7 +38,21 @@ fi
 if [[ -d .git ]]; then
   if [[ -z "${DEPLOY_REEXEC:-}" ]]; then
     echo "==> Atualizando código (git)"
-    git pull --ff-only
+    # Nomear remoto e branch não é preciosismo: `git pull --ff-only` sozinho
+    # decide o que mesclar pela configuração de rastreamento do checkout, e
+    # quando ela não aponta para uma única branch ele tenta avançar para todas
+    # as que o fetch trouxe. Enquanto o origin só tinha `main` isso passou
+    # despercebido; na primeira branch de trabalho publicada o deploy quebrou
+    # com "fatal: Cannot fast-forward to multiple branches" — e quebrou ANTES
+    # de chegar em qualquer coisa deste script, porque é a primeira linha que
+    # toca a rede. Dizendo qual branch puxar, o número de branches no remoto
+    # deixa de importar.
+    rama="$(git rev-parse --abbrev-ref HEAD)"
+    if [[ "$rama" == "HEAD" ]]; then
+      echo "ERRO: o checkout de $APP_DIR está em detached HEAD; não sei o que atualizar." >&2
+      exit 1
+    fi
+    git pull --ff-only origin "$rama"
     # O pull pode ter reescrito ESTE arquivo. O bash lê o script por offset
     # enquanto executa, então continuar aqui rodaria uma mistura da versão
     # velha com a nova. Re-executa uma única vez, já na versão atualizada.
